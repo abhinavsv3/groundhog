@@ -35,6 +35,8 @@ import math
 import sys
 from pathlib import Path
 
+from swebench_data import load_results
+
 MIN_INSTANCES = 10      # per cell; below this binomial noise swamps everything
 MIN_REPOS = 5           # a submission must span this many repos to be modelled
 FLAG_Z = 4.0            # standardised residual worth investigating
@@ -42,53 +44,9 @@ EPS = 1e-6
 
 
 def load(root: Path) -> tuple[dict[str, dict[str, tuple[int, int]]], list[str]]:
-    """Load per-repo results, discarding submissions whose denominators are wrong.
-
-    Not every published file is trustworthy. Thirteen historical Verified files
-    carry the full test-split totals (2,294) rather than the Verified subset
-    (500), which deflates their rates by roughly 3.7x -- see SWE-bench/experiments
-    issue #484. Fitting on them would drag the model and manufacture outliers.
-
-    Rather than hard-coding those thirteen, we take the modal denominator per
-    repository across all submissions as ground truth and drop any submission
-    that disagrees. That generalises to whatever the next bookkeeping bug is.
-    """
-    raw_rows: dict[str, dict[str, tuple[int, int]]] = {}
-    for path in sorted(root.glob("evaluation/*/*/results/resolved_by_repo.json")):
-        split = path.parents[2].name
-        name = f"{split}/{path.parents[1].name}"
-        try:
-            raw = json.loads(path.read_text())
-        except (json.JSONDecodeError, OSError):
-            continue
-        rows = {
-            repo: (int(v["resolved"]), int(v["total"]))
-            for repo, v in raw.items()
-            if isinstance(v, dict) and int(v.get("total", 0)) > 0
-        }
-        if rows:
-            raw_rows[name] = rows
-
-    # modal denominator per (split, repo)
-    tallies: dict[tuple[str, str], dict[int, int]] = {}
-    for name, rows in raw_rows.items():
-        split = name.split("/", 1)[0]
-        for repo, (_, total) in rows.items():
-            tallies.setdefault((split, repo), {})
-            tallies[(split, repo)][total] = tallies[(split, repo)].get(total, 0) + 1
-    expected = {key: max(counts, key=counts.get) for key, counts in tallies.items()}
-
-    out: dict[str, dict[str, tuple[int, int]]] = {}
-    rejected: list[str] = []
-    for name, rows in raw_rows.items():
-        split = name.split("/", 1)[0]
-        if any(total != expected.get((split, repo), total) for repo, (_, total) in rows.items()):
-            rejected.append(name)
-            continue
-        kept = {r: v for r, v in rows.items() if v[1] >= MIN_INSTANCES}
-        if len(kept) >= MIN_REPOS:
-            out[name] = kept
-    return out, rejected
+    """Per-repo results with the shared integrity gate, then the cell-size floor."""
+    data, rejected = load_results(root, min_instances=MIN_INSTANCES)
+    return {k: v for k, v in data.items() if len(v) >= MIN_REPOS}, rejected
 
 
 def logit(p: float) -> float:

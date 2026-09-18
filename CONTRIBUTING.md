@@ -1,6 +1,6 @@
 # Contributing to Groundhog
 
-Groundhog is small on purpose: about 1,300 lines, no runtime dependencies, and
+Groundhog is small on purpose: about 1,800 lines, no runtime dependencies, and
 four files that each do one thing. You should be able to read the whole thing in
 an afternoon and change it with confidence.
 

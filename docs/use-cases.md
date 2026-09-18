@@ -17,11 +17,17 @@ internals.
 Groundhog answers it directly: mine tasks from your own recent commits, run your
 agent, and see what fraction it closes.
 
-**Why a public leaderboard cannot answer this.** Across 130 SWE-bench submissions
-and 10 repositories, model *ranking* barely moves between repos (Spearman 0.88) —
-but the same model's *pass rate* swings a median of 35 points. "75% on SWE-bench"
-tells you almost nothing about what fraction of *your* bugs get fixed. See
+**Why a public leaderboard cannot answer this.** Across 122 SWE-bench submissions
+and 7 repositories, model *ranking* barely moves between repos (Spearman 0.86) —
+but the same model's *pass rate* swings a median of 36 points. "75% on SWE-bench"
+tells you little about what share of *your* tasks get closed. See
 [`analysis/divergence.py`](../analysis/divergence.py).
+
+**What it does not tell you** is the fraction of your real backlog an agent could
+handle. Groundhog's tasks are single commits that changed source and tests
+together, 3–200 lines, at most 5 files — which excludes features, refactors,
+multi-commit work and every bug fixed without a regression test. Read a solve
+rate as a comparable index, not a forecast.
 
 ---
 
@@ -62,7 +68,7 @@ the only option that exists.
 
 The original pitch, and largely wrong. Ranking transfers between repos, so the
 public leaderboard usually picks correctly. Use Groundhog for this only when
-models are close enough that 35 points of repo-specific variance could decide it.
+models are close enough that 36 points of repo-specific variance could decide it.
 
 We tested our own premise and it did not hold. It is documented rather than
 buried.

@@ -24,28 +24,20 @@ import sys
 from itertools import combinations
 from pathlib import Path
 
+from swebench_data import load_results
+
 MIN_INSTANCES = 20   # per repo, per model -- below this a flip is mostly noise
 MIN_REPOS = 6        # a model must cover this many qualifying repos
 MIN_GAP = 0.05       # overall pass-rate gap before we call one model "better"
 
 
-def load(root: Path) -> dict[str, dict[str, tuple[int, int]]]:
-    """model -> repo -> (resolved, total)"""
-    models: dict[str, dict[str, tuple[int, int]]] = {}
-    for path in sorted(root.glob("evaluation/verified/*/results/resolved_by_repo.json")):
-        name = path.parents[1].name
-        try:
-            raw = json.loads(path.read_text())
-        except (json.JSONDecodeError, OSError):
-            continue
-        rows = {
-            repo: (v["resolved"], v["total"])
-            for repo, v in raw.items()
-            if isinstance(v, dict) and v.get("total")
-        }
-        if rows:
-            models[name] = rows
-    return models
+def load(root: Path) -> tuple[dict[str, dict[str, tuple[int, int]]], list[str]]:
+    """Per-repo results, with the shared integrity gate applied.
+
+    Without the gate this analysis silently fits on 13 submissions whose
+    denominators are ~3.7x too large, which distorts every number below.
+    """
+    return load_results(root, min_instances=1)
 
 
 def build_matrix(models: dict) -> tuple[list[str], list[str], dict]:
@@ -104,11 +96,14 @@ def main() -> int:
     ap.add_argument("--json", type=Path, help="also write the findings here")
     cfg = ap.parse_args()
 
-    models_raw = load(cfg.experiments)
+    models_raw, rejected = load(cfg.experiments)
     if not models_raw:
         print("no resolved_by_repo.json files found", file=sys.stderr)
         return 1
     models, repos, rates = build_matrix(models_raw)
+    if rejected:
+        print(f"\nexcluded {len(rejected)} submissions failing the denominator check "
+              f"(SWE-bench/experiments#484)")
 
     print(f"\n{len(models_raw)} submissions on disk")
     print(f"{len(models)} models x {len(repos)} repos qualify "

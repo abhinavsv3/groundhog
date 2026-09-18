@@ -3,50 +3,59 @@
 **Your git history is an eval dataset. You are probably not using it.**
 
 Every commit that changes source *and* tests is a verified problem/solution pair:
-someone wrote a failing test, wrote the fix, and CI proved it worked. Your repo has
-hundreds of them, produced for free as a byproduct of your team doing its job.
+someone wrote a failing test, wrote the fix, and CI proved it worked. A repo's
+recent history holds tens of them — we mined between 7 and 82 candidates per
+project across five real codebases — produced for free as a byproduct of your
+team doing its job.
 
-Groundhog mines them, verifies them, and races coding models against them — on
+Groundhog mines them, verifies them, and races coding agents against them — on
 *your* codebase, in *your* language, with *your* conventions.
 
+Mining and validation, real output:
+
 ```
-$ groundhog mine  ~/src/httpx
-27 candidates from 171 commits                                             6s
+$ python -m groundhog mine ~/src/httpx --since "3 years ago"
+27 candidates -> tasks/candidates.jsonl                                    6s
 
-$ groundhog validate ~/src/httpx --venv .venv
-8/12 became real tasks                                                    17s
+$ python -m groundhog validate ~/src/httpx
+10/15 became real tasks                                                   24s
+```
 
-$ groundhog run ~/src/httpx --models anthropic:claude-opus-5,openai:gpt-5.2
-$ groundhog report --site site/index.html
+The run step produces a table like this. **No frontier-model run has been
+published for this repo yet** — the shape below is illustrative, not a result,
+and the numbers are deliberately left unfilled rather than invented:
 
+```
 MODEL                    SOLVED    RATE        95% CI      COST   MEDIAN
 ------------------------------------------------------------------------
-anthropic:claude-opus-5     6/8     75%     41% – 93%    $1.84      94s
-openai:gpt-5.2              5/8     62%     31% – 86%    $0.42      61s
+<model-a>                   ?/10      ?%        ? – ?         $?       ?s
+<model-b>                   ?/10      ?%        ? – ?         $?       ?s
 ```
 
-Those intervals overlap almost completely — on 8 tasks, that gap is not a
-result. Groundhog prints the interval next to every rate so the number is harder
-to over-read, and `groundhog compare` runs a paired significance test rather than
-subtracting percentages.
+Every rate carries a Wilson interval, because on a task set this size a gap of
+ten points usually is not one: 6/10 and 5/10 render as 60% and 50% while their
+intervals are 31–83% and 24–76%. `groundhog compare` runs a paired significance
+test rather than subtracting percentages.
 
 ## Why not just read a leaderboard?
 
 We tested that premise before making the claim, and it mostly did not hold.
 
-Using SWE-bench's published per-repo results (130 leaderboard submissions across
-10 repositories), repos agree strongly on how to rank models: **mean Spearman
-rho of 0.88**, and in pairs of models separated by at least 5% overall, the worse
-model wins on a given repo only **3.3%** of the time. Pick the top model off a
-public leaderboard and you will be right on your repo almost always.
+Using SWE-bench's published per-repo results (122 leaderboard submissions across
+7 repositories, after discarding 13 whose denominators are wrong — see
+[experiments#484](https://github.com/SWE-bench/experiments/issues/484)), repos
+agree strongly on how to rank models: **mean Spearman rho of 0.86**, and in pairs
+of models separated by at least 5% overall, the worse model wins on a given repo
+only **3.7%** of the time. Pick the top model off a public leaderboard and you
+will be right on your repo almost always.
 
 So Groundhog will rarely change *which* model you choose. What it tells you is
 something the leaderboards cannot:
 
-**Absolute capability does not transfer at all.** The median model swings **35
-percentage points** between its best and worst repository -- the same agent
-solving 76% of scikit-learn tasks solves 36% of sphinx tasks. "Model X is 75% on
-SWE-bench" predicts almost nothing about what fraction of *your* bugs it will fix.
+**Absolute capability transfers far worse than ranking does.** The median model
+swings **36 percentage points** between its best and worst repository. "Model X
+is 75% on SWE-bench" tells you little about what share of *your* tasks it will
+close.
 
 That is the number you need before pointing an agent at a backlog, and the only
 way to get it is to measure on your own code.
@@ -91,8 +100,11 @@ environment, and worked out how to run the tests.
 | python-attrs/attrs | class generation | 33 | 8 / 15 tried |
 | tiangolo/typer | CLI framework | 7 | 6 / 7 tried |
 
-45 verified tasks. The rejects are mostly refactors and formatting commits whose
-tests passed without the fix — exactly what the fail-to-pass check is for.
+45 verified tasks. Of the 22 rejections, 13 were commits whose tests passed
+without the fix — refactors and formatting, exactly what the fail-to-pass check
+is for. The other 9 were **our** failures, not the repos': environments
+Groundhog could not build well enough to run the tests. That ratio is a fair
+measure of how much of the remaining work is ours.
 
 ## Install
 
@@ -136,6 +148,13 @@ python -m groundhog run /path/to/repo --models openai:qwen2.5-coder:7b
 
 `scripts/local_run.sh` runs several models across several repos in one go.
 
+**Set your expectations first.** In our calibration run, qwen2.5-coder at 7B and
+14B solved **0 of 10** real httpx tasks — while editing source on half of them,
+so they engage and get it wrong rather than failing to act. Local models of this
+size are useful for exercising the harness and catching breakage, not for
+producing a capability number. See
+[analysis/local-models.md](analysis/local-models.md).
+
 Two things had to be built for local models to produce honest numbers, and both
 are worth knowing if you build something similar:
 
@@ -167,7 +186,7 @@ Early, but working end to end.
 
 ## Contributing
 
-Groundhog is ~1,300 lines with no runtime dependencies, split into four stages
+Groundhog is ~1,800 lines with no runtime dependencies, split into four stages
 that each do one thing. [CONTRIBUTING.md](CONTRIBUTING.md) explains how they fit
 together and where to start.
 
@@ -178,9 +197,9 @@ together and where to start.
 - [Running it continuously](docs/ci.md)
 
 The most wanted contributions are **a new language** (mining already recognises
-Go, Rust, TS and JS test files — only validation is Python-only) and **automatic
-environment setup**, which is what currently stands between this and a five-minute
-first run.
+Go, Rust, TS and JS test files — only validation is Python-only) and **external
+agent adapters** ([#4](../../issues/4)), which would let you benchmark the setup
+you actually use instead of the small loop shipped here.
 
 ## Citing Groundhog
 
@@ -228,8 +247,9 @@ They want Docker, conda, and multi-agent environment builders; SWE-smith says
 plainly that macOS is not supported.
 
 Groundhog aims at something smaller: a tool an engineer runs on a laptop to answer
-a **decision** — which model to point at this repo — in minutes, with no Docker.
-If you need training data at scale, use the projects above; they are better at it.
+a **decision** — did this change to our agent setup help or hurt, and how much of
+our own history can it reproduce — in minutes, with no Docker. If you need
+training data at scale, use the projects above; they are better at it.
 
 ## Honest limitations
 
