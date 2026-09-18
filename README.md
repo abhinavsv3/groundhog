@@ -134,6 +134,35 @@ back if they still fail. Before that check, a model that wrote zero files and a
 model that tried hard scored identically -- we were measuring which model gave
 up most politely.
 
+## Status
+
+Early, but working end to end.
+
+- [x] Task mining from git history
+- [x] Fail-to-pass validation with worktree isolation
+- [x] Model runner with a sandboxed agent loop
+- [x] Terminal report and leaderboard page
+- [x] Local models via Ollama, for $0
+- [ ] [Automatic environment setup](../../issues/3) — the biggest barrier to using this
+- [ ] [Languages beyond Python](../../issues?q=is%3Aissue+label%3Alanguage)
+- [ ] [External agent adapters](../../issues/4)
+- [ ] [Repeats and confidence intervals](../../issues/5)
+
+## Contributing
+
+Groundhog is ~1,300 lines with no runtime dependencies, split into four stages
+that each do one thing. [CONTRIBUTING.md](CONTRIBUTING.md) explains how they fit
+together and where to start.
+
+- [Good first issues](../../issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+- [Help wanted](../../issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
+- [What people use this for](docs/use-cases.md)
+
+The most wanted contributions are **a new language** (mining already recognises
+Go, Rust, TS and JS test files — only validation is Python-only) and **automatic
+environment setup**, which is what currently stands between this and a five-minute
+first run.
+
 ## Prior art, and where this sits
 
 This is a crowded field and the core construction is not new. Groundhog's
