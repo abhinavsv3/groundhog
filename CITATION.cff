@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use Groundhog in your research, please cite it as below."
+type: software
+title: "Groundhog"
+abstract: >-
+  Groundhog turns a repository's own commit history into a verified benchmark for
+  coding models and agents. Commits that change source and tests together are
+  mined as candidate tasks, then validated by running the test suite twice: once
+  without the original fix, where it must fail, and once with it, where it must
+  pass. Because tasks are derived from commits, a repository's recent history
+  yields evaluation data that postdates a model's training cutoff.
+authors:
+  - given-names: "Abhinav"
+    family-names: "S V"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"
+repository-code: "https://github.com/abhinavsv3/groundhog"
+url: "https://github.com/abhinavsv3/groundhog"
+license: Apache-2.0
+version: "0.1.0"
+date-released: "2026-09-18"
+keywords:
+  - benchmark
+  - evaluation
+  - large language models
+  - coding agents
+  - software engineering
+  - contamination

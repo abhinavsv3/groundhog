@@ -163,6 +163,35 @@ Go, Rust, TS and JS test files — only validation is Python-only) and **automat
 environment setup**, which is what currently stands between this and a five-minute
 first run.
 
+## Citing Groundhog
+
+If Groundhog is part of how you produced a result, please cite it. GitHub reads
+[`CITATION.cff`](CITATION.cff), so the "Cite this repository" button in the
+sidebar will generate BibTeX and APA for you.
+
+```bibtex
+@software{sv_groundhog_2026,
+  author  = {S V, Abhinav},
+  title   = {{Groundhog}: Turning Git History into Coding-Model Benchmarks},
+  year    = {2026},
+  version = {0.1.0},
+  url     = {https://github.com/abhinavsv3/groundhog},
+  license = {Apache-2.0}
+}
+```
+
+**Please also state which version you used and how tasks were produced** — the
+repository, the commit range mined, and how many candidates survived validation.
+Task sets differ between repositories and between time windows, so a Groundhog
+number is not reproducible without them. Reporting `groundhog --version` and the
+validated task count is enough.
+
+If you use the repo-transfer analysis in
+[`analysis/divergence.py`](analysis/divergence.py), note that the underlying data
+is from the [SWE-bench experiments
+repository](https://github.com/SWE-bench/experiments) and should be cited
+alongside it.
+
 ## Prior art, and where this sits
 
 This is a crowded field and the core construction is not new. Groundhog's
