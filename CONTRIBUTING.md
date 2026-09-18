@@ -46,10 +46,12 @@ for Go, Rust, TS and JS. What is missing is validation: a way to install
 dependencies and run a subset of tests for that ecosystem. Start with
 `source_roots()` in `validate.py` and the `--test-cmd` default.
 
-**Add an agent adapter** (medium, most interesting). Groundhog ships its own
-small agent loop, but the more useful question is how *your* setup performs.
-An adapter runs an external agent — aider, SWE-agent, Claude Code, opencode —
-against a prepared worktree and lets the same scoring apply.
+**Report on how an agent worked, not just whether it did** (medium, most
+interesting). `--agent-cmd` already runs any external agent against a prepared
+worktree. What is missing is instrumentation: which tools were called, how often
+a call errored, how many turns before the first edit. Those have thousands of
+samples per run where solve rate has dozens, so they can detect effects a pass
+rate never will. See [#9].
 
 **Extend environment inference** (hard, high impact). `environment.py` handles
 Python projects — extras, PEP 735 dependency groups, `requirements*.txt` — and

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -79,6 +80,19 @@ def git(repo: Path, *args: str, check: bool = True) -> str:
     return proc.stdout
 
 
+# pytest -v prints "path/to/test.py::test_name PASSED" (sometimes with params).
+TEST_LINE = re.compile(r"^(\S+::\S+?)\s+(PASSED|FAILED|ERROR|XFAIL|XPASS|SKIPPED)", re.M)
+
+
+def test_outcomes(output: str) -> dict[str, str]:
+    """Parse per-test results out of a pytest run."""
+    return {name: status for name, status in TEST_LINE.findall(output)}
+
+
+def passing(output: str) -> set[str]:
+    return {n for n, st in test_outcomes(output).items() if st in ("PASSED", "XFAIL")}
+
+
 def source_roots(tree: Path) -> list[Path]:
     """Directories that must shadow any installed copy of the package.
 
@@ -113,16 +127,18 @@ def validate_one(
         git(tree, "checkout", sha, "--", *task["test_files"])
 
         test_cmd = cfg.test_cmd.format(tests=" ".join(task["test_files"]))
+        # -v without -x: we need every test's outcome, not an early exit
+        verbose_cmd = test_cmd.replace(" -x ", " ").replace(" -q", "") + " -v --tb=no"
         pypath = {"PYTHONPATH": ":".join(str(r) for r in source_roots(tree))}
 
-        before = run(test_cmd, tree, cfg.timeout, env_path, pypath)
+        before = run(verbose_cmd, tree, cfg.timeout, env_path, pypath)
         if before.passed:
             verdict.update(status="rejected", reason="tests already pass without the fix")
             return verdict
 
         # Now apply the real source change and confirm the tests go green.
         git(tree, "checkout", sha, "--", *task["source_files"])
-        after = run(test_cmd, tree, cfg.timeout, env_path, pypath)
+        after = run(verbose_cmd, tree, cfg.timeout, env_path, pypath)
         if not after.passed:
             verdict.update(
                 status="rejected",
@@ -131,9 +147,25 @@ def validate_one(
             )
             return verdict
 
+        # FAIL_TO_PASS: the tests the fix is *for*.
+        # PASS_TO_PASS: tests already green that must stay green, which is what
+        # stops an agent from "solving" a task by breaking everything around it.
+        was, now = passing(before.output), passing(after.output)
+        fail_to_pass = sorted(now - was)
+        pass_to_pass = sorted(now & was)
+
+        if not fail_to_pass:
+            verdict.update(
+                status="rejected",
+                reason="no test flipped from failing to passing",
+            )
+            return verdict
+
         verdict.update(
             status="valid",
             test_cmd=test_cmd,
+            fail_to_pass=fail_to_pass,
+            pass_to_pass=pass_to_pass,
             fail_seconds=round(before.duration, 1),
             pass_seconds=round(after.duration, 1),
             failure_excerpt=tail(before.output, 8),
@@ -184,7 +216,8 @@ def main() -> int:
         results.append(verdict)
         if verdict["status"] == "valid":
             valid.append({**task, **verdict})
-            print(f"  VALID   ({verdict['fail_seconds']}s -> {verdict['pass_seconds']}s)", file=sys.stderr)
+            print(f"  VALID   F2P={len(verdict['fail_to_pass']):<3} P2P={len(verdict['pass_to_pass']):<4} "
+                  f"({verdict['fail_seconds']}s -> {verdict['pass_seconds']}s)", file=sys.stderr)
         else:
             print(f"  {verdict['status'].upper()}  {verdict.get('reason', '')[:44]}", file=sys.stderr)
 

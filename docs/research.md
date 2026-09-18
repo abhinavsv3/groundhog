@@ -25,33 +25,47 @@ navigating a framework.
 
 ## A worked example: does tool naming matter?
 
-Hold everything fixed except the names of the tools exposed to the model.
-
-```python
-# groundhog/run.py — condition B
-def tools_for(test_files):
-    return [
-        {"name": "inspect_directory", ...},   # was list_files
-        {"name": "open_source_file", ...},    # was read_file
-        {"name": "apply_patch", ...},         # was write_file
-        {"name": "verify", ...},              # was run_tests
-    ]
-```
+Hold everything fixed except the names of the tools your agent exposes, and let
+Groundhog run **your** agent rather than its own:
 
 ```bash
+# condition A — your current tool names
 python -m groundhog run . --tasks tasks/pinned.jsonl --repeats 5 \
-    --models anthropic:claude-opus-5 --out results/names-plain.jsonl
-# swap in condition B
+    --agent-cmd "./my-agent --tools tools-plain.json --task {prompt_file}" \
+    --out results/names-plain.jsonl
+
+# condition B — descriptive names, nothing else changed
 python -m groundhog run . --tasks tasks/pinned.jsonl --repeats 5 \
-    --models anthropic:claude-opus-5 --out results/names-descriptive.jsonl
+    --agent-cmd "./my-agent --tools tools-descriptive.json --task {prompt_file}" \
+    --out results/names-descriptive.jsonl
 
 python -m groundhog compare results/names-plain.jsonl results/names-descriptive.jsonl \
     --label-a plain --label-b descriptive
 ```
 
-The comparison is paired on tasks and tested with an exact McNemar test. Only the
-tasks where the two conditions disagree carry information, which is what makes a
-modest task set usable.
+Your agent gets a prepared git worktree and a prompt file; what it does in
+between is entirely yours. Placeholders available in `--agent-cmd` are
+`{prompt_file}`, `{prompt}`, `{repo}` and `{test_cmd}`, and the same values are
+exported as `GROUNDHOG_PROMPT_FILE` and `GROUNDHOG_TEST_CMD`.
+
+**Scoring stays outside your agent's reach**, which is what makes the comparison
+worth anything:
+
+- every `FAIL_TO_PASS` test must pass
+- every `PASS_TO_PASS` test must *still* pass — so deleting the rest of the suite
+  does not read as a fix
+- the test files must be byte-identical to what Groundhog handed over; an agent
+  with a shell can edit them, and editing them fails the task
+
+The comparison is paired on tasks and tested with an exact McNemar test.
+
+**A caution specific to this experiment.** Tool naming is plausibly a small
+effect, and pass/fail is a lossy instrument for detecting one — you are
+collapsing an entire session into a single bit. A 45-task run generates on the
+order of 1,500 tool calls, and naming should move *tool-selection* behaviour long
+before it moves solve rate. Instrumentation for that is
+[#9](https://github.com/abhinavsv3/groundhog/issues/9); until it lands, expect a
+null result on a small task set and do not read it as "naming does not matter".
 
 ## Statistical power — read this before designing the study
 

@@ -122,6 +122,10 @@ way a benchmark run dies on somebody's laptop.
 python -m groundhog mine     /path/to/repo --since "6 months ago"
 python -m groundhog validate /path/to/repo
 python -m groundhog run      /path/to/repo --models anthropic:claude-opus-5,openai:gpt-5.2
+
+# or benchmark the agent you actually use
+python -m groundhog run /path/to/repo \
+    --agent-cmd "aider --yes --message-file {prompt_file}"
 python -m groundhog report   --site site/index.html --repo owner/name
 
 # did a change to your agent setup help or hurt?
@@ -180,7 +184,8 @@ Early, but working end to end.
 - [x] Local models via Ollama, for $0
 - [x] Automatic environment setup — no venv or test command needed
 - [ ] [Languages beyond Python](../../issues?q=is%3Aissue+label%3Alanguage)
-- [ ] [External agent adapters](../../issues/4)
+- [x] External agent adapters — benchmark *your* agent, not ours
+- [x] FAIL_TO_PASS / PASS_TO_PASS scoring and test-tamper detection
 - [x] Repeats, Wilson intervals and paired significance testing
 - [x] Regression tracking (`groundhog compare`) and a CI workflow
 
@@ -196,10 +201,10 @@ together and where to start.
 - [Using Groundhog for research](docs/research.md)
 - [Running it continuously](docs/ci.md)
 
-The most wanted contributions are **a new language** (mining already recognises
-Go, Rust, TS and JS test files — only validation is Python-only) and **external
-agent adapters** ([#4](../../issues/4)), which would let you benchmark the setup
-you actually use instead of the small loop shipped here.
+The most wanted contribution is **a new language** — mining already recognises
+Go, Rust, TS and JS test files, and only validation is Python-only. After that,
+[task classification](../../issues/7) and [tool-call
+instrumentation](../../issues/9).
 
 ## Citing Groundhog
 
@@ -288,8 +293,10 @@ caught it, and it failed *silently* — worth knowing if you build something sim
 45% elsewhere says nothing about the two repos' relative difficulty. Hold the repo
 fixed and compare models.
 
-**Tests are a proxy for correctness, not correctness.** A model can make tests pass
-in ways the original author would reject in review.
+**Tests are a proxy for correctness, not correctness.** An agent can make tests
+pass in ways the original author would reject in review. Groundhog checks that
+`PASS_TO_PASS` tests still pass and that test files were not edited, which rules
+out the crudest cheats — not the subtle ones.
 
 **Public repos may be contaminated.** The repos benchmarked above are popular and
 open; their commits and patches may sit in model training data, which inflates
