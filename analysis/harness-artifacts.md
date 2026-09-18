@@ -1,5 +1,8 @@
 # Harness artifacts in published benchmark results
 
+> Offered to the SWE-bench maintainers as
+> [experiments#488](https://github.com/SWE-bench/experiments/issues/488).
+
 A coding-agent benchmark can fail in a way that produces a *plausible number*
 rather than an error. A broken environment makes every task in one repository
 fail; the submission still reports a total; nobody notices.
