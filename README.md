@@ -105,6 +105,35 @@ Models are named `provider:model`. Anything with an OpenAI-compatible API
 (OpenRouter, Together, Groq, vLLM, Ollama) works through the `openai` provider with
 `GROUNDHOG_OPENAI_BASE_URL` pointed at it.
 
+## Running it for free
+
+Groundhog works against local models through Ollama, so a full benchmark costs
+nothing:
+
+```bash
+ollama pull qwen2.5-coder:7b
+export OPENAI_API_KEY=ollama
+export GROUNDHOG_OPENAI_BASE_URL=http://localhost:11434/v1
+
+python -m groundhog run /path/to/repo --models openai:qwen2.5-coder:7b
+```
+
+`scripts/local_run.sh` runs several models across several repos in one go.
+
+Two things had to be built for local models to produce honest numbers, and both
+are worth knowing if you build something similar:
+
+**Some models emit tool calls as text.** qwen2.5-coder's Ollama template has no
+native tool support, so a perfectly good call arrives as a JSON blob in the
+message body. Scored naively it looks like total incapacity. Groundhog parses
+those back into real tool calls.
+
+**Never trust "I'm done".** Weak models routinely announce success having edited
+nothing. Groundhog runs the tests when a model claims to be finished and pushes
+back if they still fail. Before that check, a model that wrote zero files and a
+model that tried hard scored identically -- we were measuring which model gave
+up most politely.
+
 ## Prior art, and where this sits
 
 This is a crowded field and the core construction is not new. Groundhog's

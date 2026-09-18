@@ -38,6 +38,7 @@ MAX_FILE_BYTES = 120_000
 
 @dataclass
 class Attempt:
+    repo: str
     task_id: str
     subject: str
     model: str
@@ -47,6 +48,7 @@ class Attempt:
     input_tokens: int = 0
     output_tokens: int = 0
     cost_usd: float | None = None
+    nudges: int = 0
     error: str = ""
     files_touched: list[str] = field(default_factory=list)
 
@@ -121,10 +123,19 @@ class Workspace:
         return result.passed, result.output
 
     def call(self, name: str, args: dict) -> str:
+        """Dispatch a tool call. A bad argument is feedback, never a crash."""
+        try:
+            return self._call(name, args)
+        except Exception as exc:
+            return f"error: {type(exc).__name__}: {exc}"
+
+    def _call(self, name: str, args: dict) -> str:
         if name == "list_files":
             base = self._resolve(args.get("path") or ".")
             if base is None or not base.exists():
                 return "error: no such directory"
+            if not base.is_dir():
+                return f"error: {args.get('path')} is a file, not a directory"
             names = sorted(p.name + ("/" if p.is_dir() else "") for p in base.iterdir())
             return "\n".join(names[:400]) or "(empty)"
 
@@ -158,7 +169,7 @@ class Workspace:
 
 
 def attempt(repo: Path, task: dict, model: str, cfg: argparse.Namespace) -> Attempt:
-    record = Attempt(task_id=task["sha"][:12], subject=task["subject"], model=model)
+    record = Attempt(repo=repo.name, task_id=task["sha"][:12], subject=task["subject"], model=model)
     started = time.monotonic()
     ws = Workspace(repo, task, cfg.venv, cfg.test_cmd, cfg.timeout)
 
@@ -173,14 +184,33 @@ def attempt(repo: Path, task: dict, model: str, cfg: argparse.Namespace) -> Atte
         )
 
         tools = tools_for(ws.test_files)
+        solved = False
         for turn in range(cfg.max_turns):
             record.turns = turn + 1
             reply = chat.reply(tools)
-            if reply.done:
-                break
-            chat.give_results([(c.id, ws.call(c.name, c.args)) for c in reply.tool_calls])
 
-        record.solved, _ = ws.run_tests()
+            if reply.done:
+                # Never take "I'm finished" on trust -- check, and push back once
+                # or twice if it isn't true. Without this we would be measuring
+                # which model gives up most politely.
+                solved, output = ws.run_tests()
+                if solved or record.nudges >= cfg.max_nudges:
+                    break
+                record.nudges += 1
+                chat.say(
+                    "The tests still fail. You have not finished.\n\n"
+                    f"```\n{tail(output, 40)}\n```\n\n"
+                    + ("Call write_file to change the source -- you have not edited anything yet."
+                       if not ws.touched
+                       else "Keep going: read the relevant source, then call write_file with a fix.")
+                )
+                continue
+
+            chat.give_results(
+                [(c.id, ws.call(c.name, c.args if isinstance(c.args, dict) else {})) for c in reply.tool_calls]
+            )
+
+        record.solved = solved or ws.run_tests()[0]
         record.input_tokens = chat.usage.input_tokens
         record.output_tokens = chat.usage.output_tokens
         record.cost_usd = price_of(model, chat.usage)
@@ -205,6 +235,7 @@ def main() -> int:
     ap.add_argument("--test-cmd", default="python -m pytest {tests} -x -q")
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--max-turns", type=int, default=25)
+    ap.add_argument("--max-nudges", type=int, default=2, help="times to push back on a premature finish")
     ap.add_argument("--limit", type=int, default=0)
     cfg = ap.parse_args()
 

@@ -76,6 +76,65 @@ class Reply:
     done: bool
 
 
+TOOL_CALL_KEYS = ("arguments", "parameters", "input", "args")
+
+
+def parse_text_tool_calls(text: str, known: set[str]) -> list[ToolCall]:
+    """Recover tool calls from models that emit them as plain text.
+
+    Several strong local models (qwen2.5-coder among them) ship Ollama templates
+    with no native tool support, so a perfectly good tool call arrives as a JSON
+    blob in the message body. Without this the model looks incapable when it is
+    merely differently packaged -- exactly the kind of harness artifact that
+    silently corrupts a benchmark.
+    """
+    if not text or "{" not in text:
+        return []
+
+    blobs: list[str] = []
+    fence = text.split("```")
+    for i, chunk in enumerate(fence):
+        if i % 2 == 1:  # inside a fence
+            blobs.append(chunk.split("\n", 1)[-1] if chunk[:20].strip() in ("json", "tool_call") else chunk)
+    blobs.append(text)
+
+    calls: list[ToolCall] = []
+    seen: set[str] = set()
+    for blob in blobs:
+        for start in (i for i, c in enumerate(blob) if c == "{"):
+            depth = 0
+            for end in range(start, len(blob)):
+                if blob[end] == "{":
+                    depth += 1
+                elif blob[end] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        candidate = blob[start : end + 1]
+                        try:
+                            obj = json.loads(candidate)
+                        except json.JSONDecodeError:
+                            break
+                        name = obj.get("name")
+                        if not isinstance(name, str) or name not in known:
+                            break
+                        args = next((obj[k] for k in TOOL_CALL_KEYS if k in obj), {})
+                        if isinstance(args, str):
+                            try:
+                                args = json.loads(args)
+                            except json.JSONDecodeError:
+                                args = {}
+                        if not isinstance(args, dict):
+                            args = {}
+                        key = name + json.dumps(args, sort_keys=True)
+                        if key not in seen:
+                            seen.add(key)
+                            calls.append(ToolCall(id=f"text_{len(calls)}", name=name, args=args))
+                        break
+        if calls:
+            break
+    return calls
+
+
 class ProviderError(RuntimeError):
     pass
 
@@ -219,10 +278,28 @@ class OpenAI(Provider):
                 args = {}
             calls.append(ToolCall(id=tc["id"], name=tc["function"]["name"], args=args))
 
+        text = choice.get("content") or ""
+        if not calls:
+            calls = parse_text_tool_calls(text, {t["name"] for t in tools})
+            if calls:
+                # Keep the transcript coherent for the next request.
+                self.messages[-1] = {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": c.id,
+                            "type": "function",
+                            "function": {"name": c.name, "arguments": json.dumps(c.args)},
+                        }
+                        for c in calls
+                    ],
+                }
+
         u = data.get("usage", {})
         step = Usage(u.get("prompt_tokens", 0), u.get("completion_tokens", 0))
         self.usage = self.usage + step
-        return Reply(choice.get("content") or "", calls, step, done=not calls)
+        return Reply(text, calls, step, done=not calls)
 
     def give_results(self, results: list[tuple[str, str]]) -> None:
         for cid, out in results:
