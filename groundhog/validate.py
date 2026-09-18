@@ -25,6 +25,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from .environment import DetectionFailed, detect, ensure
+
 
 @dataclass
 class RunResult:
@@ -151,10 +153,21 @@ def main() -> int:
     ap.add_argument("--candidates", type=Path, default=Path("tasks/candidates.jsonl"))
     ap.add_argument("--out", type=Path, default=Path("tasks/validated.jsonl"))
     ap.add_argument("--test-cmd", default="python -m pytest {tests} -x -q")
-    ap.add_argument("--venv", type=Path, help="virtualenv to run tests inside")
+    ap.add_argument("--venv", type=Path, help="virtualenv to run tests inside (auto-built if omitted)")
+    ap.add_argument("--no-auto-env", action="store_true", help="do not build an environment automatically")
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--limit", type=int, default=0, help="stop after N candidates")
     cfg = ap.parse_args()
+
+    if cfg.venv is None and not cfg.no_auto_env:
+        try:
+            plan = detect(cfg.repo)
+            if cfg.test_cmd == ap.get_default("test_cmd"):
+                cfg.test_cmd = plan.test_cmd
+            cfg.venv = ensure(cfg.repo, plan)
+        except DetectionFailed as exc:
+            print(f"\n{exc}\n", file=sys.stderr)
+            return 1
 
     tasks = [json.loads(line) for line in cfg.candidates.read_text().splitlines() if line.strip()]
     if cfg.limit:

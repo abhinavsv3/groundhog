@@ -72,15 +72,22 @@ The model then sees the repo at the parent commit and the failing test output, a
 has to write the source change itself. Test files are read-only — editing the test
 is failing the task.
 
-## Measured on three real repos
+## Measured on five real repos
 
-| Repo | Domain | Commits scanned | Candidates | Validated tasks |
-|---|---|---|---|---|
-| encode/httpx | HTTP client | 171 | 27 | 8 / 12 tried |
-| pallets/click | CLI framework | 400 | 82 | 17 / 20 tried |
-| Textualize/rich | terminal rendering | 400 | 37 | 12 / 20 tried |
+Every one of these ran with **no configuration** — no venv, no test command, no
+flags. Groundhog read the project's own dependency declarations, built a cached
+environment, and worked out how to run the tests.
 
-Clone to verified tasks takes under a minute per repo once the environment exists.
+| Repo | Domain | Candidates | Validated |
+|---|---|---|---|
+| encode/httpx | HTTP client | 27 | 10 / 15 tried |
+| pallets/click | CLI framework | 82 | 12 / 15 tried |
+| Textualize/rich | terminal rendering | 37 | 9 / 15 tried |
+| python-attrs/attrs | class generation | 33 | 8 / 15 tried |
+| tiangolo/typer | CLI framework | 7 | 6 / 7 tried |
+
+45 verified tasks. The rejects are mostly refactors and formatting commits whose
+tests passed without the fix — exactly what the fail-to-pass check is for.
 
 ## Install
 
@@ -96,7 +103,7 @@ way a benchmark run dies on somebody's laptop.
 
 ```bash
 python -m groundhog mine     /path/to/repo --since "6 months ago"
-python -m groundhog validate /path/to/repo --venv /path/to/venv
+python -m groundhog validate /path/to/repo
 python -m groundhog run      /path/to/repo --models anthropic:claude-opus-5,openai:gpt-5.2
 python -m groundhog report   --site site/index.html --repo owner/name
 ```
@@ -143,7 +150,7 @@ Early, but working end to end.
 - [x] Model runner with a sandboxed agent loop
 - [x] Terminal report and leaderboard page
 - [x] Local models via Ollama, for $0
-- [ ] [Automatic environment setup](../../issues/3) — the biggest barrier to using this
+- [x] Automatic environment setup — no venv or test command needed
 - [ ] [Languages beyond Python](../../issues?q=is%3Aissue+label%3Alanguage)
 - [ ] [External agent adapters](../../issues/4)
 - [ ] [Repeats and confidence intervals](../../issues/5)

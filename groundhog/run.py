@@ -19,6 +19,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from .environment import DetectionFailed, detect, ensure
 from .models import ProviderError, Usage, connect, price_of
 from .validate import git, run, source_roots, tail
 
@@ -231,13 +232,24 @@ def main() -> int:
     ap.add_argument("--models", required=True, help="comma separated, e.g. anthropic:claude-opus-5,openai:gpt-5.2")
     ap.add_argument("--tasks", type=Path, default=Path("tasks/validated.jsonl"))
     ap.add_argument("--out", type=Path, default=Path("results/results.jsonl"))
-    ap.add_argument("--venv", type=Path)
+    ap.add_argument("--venv", type=Path, help="virtualenv to run tests inside (auto-built if omitted)")
+    ap.add_argument("--no-auto-env", action="store_true")
     ap.add_argument("--test-cmd", default="python -m pytest {tests} -x -q")
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--max-turns", type=int, default=25)
     ap.add_argument("--max-nudges", type=int, default=2, help="times to push back on a premature finish")
     ap.add_argument("--limit", type=int, default=0)
     cfg = ap.parse_args()
+
+    if cfg.venv is None and not cfg.no_auto_env:
+        try:
+            plan = detect(cfg.repo)
+            if cfg.test_cmd == ap.get_default("test_cmd"):
+                cfg.test_cmd = plan.test_cmd
+            cfg.venv = ensure(cfg.repo, plan)
+        except DetectionFailed as exc:
+            print(f"\n{exc}\n", file=sys.stderr)
+            return 1
 
     tasks = [json.loads(l) for l in cfg.tasks.read_text().splitlines() if l.strip()]
     if cfg.limit:

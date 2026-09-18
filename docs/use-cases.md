@@ -85,9 +85,9 @@ cluster and a dataset.
 
 ## Where it is weakest
 
-**Environment setup.** You supply the venv and the test command. Repos with
-native extensions, service dependencies or drifting lockfiles will fight you.
-This is the single biggest barrier to every use case above.
+**Environment setup is inferred, not guaranteed.** Zero-config works on the
+five repos tested so far. Native extensions, service dependencies and unusual
+build systems will still need manual flags.
 
 **Python only, really.** Mining recognises Go, Rust, TS and JS test files;
 validation has only been exercised on Python.
