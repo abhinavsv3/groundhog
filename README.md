@@ -1,57 +1,70 @@
 # Groundhog
 
-**Your git history is an eval dataset. Nobody is using it.**
+**Your git history is an eval dataset. You are probably not using it.**
 
 Every commit that changes source *and* tests is a verified problem/solution pair:
 someone wrote a failing test, wrote the fix, and CI proved it worked. Your repo has
-thousands of them, generated for free as a byproduct of your team doing its job.
+hundreds of them, produced for free as a byproduct of your team doing its job.
 
-Groundhog mines them, verifies them, and turns them into a benchmark for coding
-models — on *your* codebase, in *your* language, with *your* conventions.
+Groundhog mines them, verifies them, and races coding models against them — on
+*your* codebase, in *your* language, with *your* conventions.
 
 ```
-$ groundhog mine  https://github.com/encode/httpx
-27 candidates from 171 commits                                    6s
+$ groundhog mine  ~/src/httpx
+27 candidates from 171 commits                                             6s
 
-$ groundhog validate
-8/12 became real tasks                                           17s
+$ groundhog validate ~/src/httpx --venv .venv
+8/12 became real tasks                                                    17s
 
-$ groundhog run --models claude-opus-5,gpt-5.2,gemini-3-pro
+$ groundhog run ~/src/httpx --models anthropic:claude-opus-5,openai:gpt-5.2
+$ groundhog report --site site/index.html
+
+MODEL                    SOLVED    RATE      COST   PER SOLVE   MEDIAN
+----------------------------------------------------------------------
+anthropic:claude-opus-5     6/8     75%     $1.84       $0.31      94s
+openai:gpt-5.2              5/8     63%     $0.42       $0.08      61s
 ```
 
 ## Why not just read a leaderboard?
 
 Public benchmarks tell you which model is best at Django and sympy internals.
-That is a real fact about the world and a poor predictor of how a model will do
-in your TypeScript monorepo with unusual conventions and a slow test suite.
+That is a real fact about the world and a poor predictor of how a model behaves in
+your TypeScript monorepo with unusual conventions and a slow test suite.
 
-Groundhog answers a narrower and more useful question: **which model is best
-here, in this repo?**
+Arena's own numbers show how unstable these rankings are: a model sitting at #5
+overall lands at #32 on coding, while one at #24 overall takes #1 on webdev. If
+changing the *category* moves a model 27 places, changing the *repo* may too.
+
+Groundhog answers the narrower question: **which model is best here?**
 
 ## How a task is built
 
-Take a commit that touched both source and tests. Check out its parent. Copy in
-the new tests but none of the new source. Then run the tests twice:
+Take a commit that touched both source and tests. Check out its parent. Copy in the
+new tests but none of the new source. Then run the tests twice:
 
 ```
 parent + new tests             must FAIL    (the task is solvable)
 parent + new tests + real fix  must PASS    (the task is fair)
 ```
 
-A candidate only becomes a task if both hold. That one check is what separates a
-genuine bug fix from a refactor — and no amount of diff analysis can do it. On
-the httpx run above, it automatically threw out a `ruff` formatting commit and
-two pure refactors, because their tests passed without the fix.
+A candidate becomes a task only if both hold. That single check is what separates a
+genuine bug fix from a refactor, and no amount of diff analysis can do it. On the
+runs below it threw out a `ruff` formatting commit and two pure refactors, because
+their tests passed without the fix.
 
-The model then sees the repo at the parent commit and the failing test output.
-It has to write the source change itself.
+The model then sees the repo at the parent commit and the failing test output, and
+has to write the source change itself. Test files are read-only — editing the test
+is failing the task.
 
-## Contamination
+## Measured on three real repos
 
-Tasks come from commits. Point Groundhog at commits merged after a model's
-training cutoff and you get evals that model provably has not memorized. Re-run
-next month against next month's commits and you have a fresh benchmark, forever,
-with no human labeling.
+| Repo | Domain | Commits scanned | Candidates | Validated tasks |
+|---|---|---|---|---|
+| encode/httpx | HTTP client | 171 | 27 | 8 / 12 tried |
+| pallets/click | CLI framework | 400 | 82 | 17 / 20 tried |
+| Textualize/rich | terminal rendering | 400 | 37 | 12 / 20 tried |
+
+Clone to verified tasks takes under a minute per repo once the environment exists.
 
 ## Install
 
@@ -60,43 +73,65 @@ git clone https://github.com/abhinavsv3/groundhog
 cd groundhog && pip install -e .
 ```
 
+No runtime dependencies. Everything is stdlib, because every dependency is another
+way a benchmark run dies on somebody's laptop.
+
 ## Usage
 
 ```bash
-# 1. Find commits that look like tasks (pure git analysis, fast)
-python -m groundhog.mine /path/to/repo --since "6 months ago"
-
-# 2. Prove they actually fail-then-pass (runs the test suite)
-python -m groundhog.validate /path/to/repo --venv .venv
-
-# 3. Race models against them
-python -m groundhog.run --models claude-opus-5,gpt-5.2
+python -m groundhog mine     /path/to/repo --since "6 months ago"
+python -m groundhog validate /path/to/repo --venv /path/to/venv
+python -m groundhog run      /path/to/repo --models anthropic:claude-opus-5,openai:gpt-5.2
+python -m groundhog report   --site site/index.html --repo owner/name
 ```
 
-## Status
+Models are named `provider:model`. Anything with an OpenAI-compatible API
+(OpenRouter, Together, Groq, vLLM, Ollama) works through the `openai` provider with
+`GROUNDHOG_OPENAI_BASE_URL` pointed at it.
 
-Early. Working today:
+## Prior art, and where this sits
 
-- [x] Task mining from git history
-- [x] Fail-to-pass validation with worktree isolation
-- [ ] Model runner (agent loop + sandboxed edits)
-- [ ] Leaderboard UI
-- [ ] Language support beyond Python
+This is a crowded field and the core construction is not new. Groundhog's
+fail-to-pass mining is the same idea as
+[SWE-bench](https://github.com/SWE-bench/SWE-bench), and several projects already
+automate task generation from arbitrary repos:
+
+- [SWE-smith](https://github.com/SWE-bench/SWE-smith) — turn any repo into a SWE-gym
+- [SWE-bench-Live](https://github.com/microsoft/SWE-bench-Live) — continuously updated tasks, LLM-built environments
+- [SWE-Factory](https://github.com/DeepSoftwareAnalytics/swe-factory) — automated pipeline, multi-language
+- [R2E-Gym](https://github.com/R2E-Gym/R2E-Gym) — procedurally curated environments
+
+Those are research infrastructure aimed at producing **training data** at scale.
+They want Docker, conda, and multi-agent environment builders; SWE-smith says
+plainly that macOS is not supported.
+
+Groundhog aims at something smaller: a tool an engineer runs on a laptop to answer
+a **decision** — which model to point at this repo — in minutes, with no Docker.
+If you need training data at scale, use the projects above; they are better at it.
 
 ## Honest limitations
 
-**Environments are the hard part, not mining.** Groundhog has to install your
-deps and run your tests deterministically at an arbitrary old commit. This is the
-reason "benchmark any repo" tools don't already exist. Right now you supply the
-venv and the test command; repos with heavy native deps, service dependencies, or
-drifting lockfiles will fight you.
+**Environments are the hard part.** Groundhog must install your deps and run your
+tests at an arbitrary old commit. Right now you supply the venv and test command.
+Repos with native extensions, service dependencies, or drifting lockfiles will fight
+you. The projects above solved this with an LLM that infers build commands;
+Groundhog has not.
 
-**Per-repo results are not comparable across repos.** A model scoring 60% on your
-code and 45% on someone else's tells you nothing about the two repos' difficulty.
-Groundhog is for comparing *models*, holding the repo fixed.
+**Editable installs silently poison results.** A package installed `-e` from the
+original clone shadows the worktree, so a src-layout repo imports the *fixed* code
+and every test passes no matter what the model wrote. Groundhog forces the
+worktree onto `PYTHONPATH` to prevent this. It cost us 20 tasks on click before we
+caught it, and it failed *silently* — worth knowing if you build something similar.
 
-**Tests are a proxy for correctness, not correctness.** A model can make tests
-pass in ways the original author would reject.
+**Per-repo results are not comparable across repos.** A model scoring 60% here and
+45% elsewhere says nothing about the two repos' relative difficulty. Hold the repo
+fixed and compare models.
+
+**Tests are a proxy for correctness, not correctness.** A model can make tests pass
+in ways the original author would reject in review.
+
+**Python only, for now.** The mining patterns recognise Go, Rust, TS and JS test
+files, but validation has only been exercised on Python.
 
 ## License
 

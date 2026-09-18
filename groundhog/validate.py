@@ -33,15 +33,23 @@ class RunResult:
     output: str
 
 
-def run(cmd: str, cwd: Path, timeout: int, env_path: Path | None = None) -> RunResult:
+def run(
+    cmd: str,
+    cwd: Path,
+    timeout: int,
+    env_path: Path | None = None,
+    extra_env: dict[str, str] | None = None,
+) -> RunResult:
     started = time.monotonic()
     shell_env = None
-    if env_path is not None:
+    if env_path is not None or extra_env:
         import os
 
         shell_env = dict(os.environ)
-        shell_env["PATH"] = f"{env_path / 'bin'}:{shell_env['PATH']}"
-        shell_env["VIRTUAL_ENV"] = str(env_path)
+        if env_path is not None:
+            shell_env["PATH"] = f"{env_path / 'bin'}:{shell_env['PATH']}"
+            shell_env["VIRTUAL_ENV"] = str(env_path)
+        shell_env.update(extra_env or {})
     try:
         proc = subprocess.run(
             cmd,
@@ -69,6 +77,20 @@ def git(repo: Path, *args: str, check: bool = True) -> str:
     return proc.stdout
 
 
+def source_roots(tree: Path) -> list[Path]:
+    """Directories that must shadow any installed copy of the package.
+
+    An editable install points at the original clone, so a worktree using a
+    src/ layout would import the *fixed* code no matter what the model wrote --
+    every test passes and the task looks like a harmless refactor. Putting the
+    worktree's own roots on PYTHONPATH is what stops that.
+    """
+    roots = [tree]
+    if (tree / "src").is_dir():
+        roots.insert(0, tree / "src")
+    return roots
+
+
 def tail(text: str, lines: int = 12) -> str:
     return "\n".join(text.strip().splitlines()[-lines:])
 
@@ -89,15 +111,16 @@ def validate_one(
         git(tree, "checkout", sha, "--", *task["test_files"])
 
         test_cmd = cfg.test_cmd.format(tests=" ".join(task["test_files"]))
+        pypath = {"PYTHONPATH": ":".join(str(r) for r in source_roots(tree))}
 
-        before = run(test_cmd, tree, cfg.timeout, env_path)
+        before = run(test_cmd, tree, cfg.timeout, env_path, pypath)
         if before.passed:
             verdict.update(status="rejected", reason="tests already pass without the fix")
             return verdict
 
         # Now apply the real source change and confirm the tests go green.
         git(tree, "checkout", sha, "--", *task["source_files"])
-        after = run(test_cmd, tree, cfg.timeout, env_path)
+        after = run(test_cmd, tree, cfg.timeout, env_path, pypath)
         if not after.passed:
             verdict.update(
                 status="rejected",
