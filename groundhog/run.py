@@ -55,6 +55,7 @@ class Attempt:
     nudges: int = 0
     agent: str = "builtin"
     broke_pass_to_pass: int = 0
+    fail_to_pass_passed: bool = False  # would a FAIL_TO_PASS-only harness call this solved?
     tampered_with_tests: bool = False
     error: str = ""
     files_touched: list[str] = field(default_factory=list)
@@ -118,6 +119,7 @@ class Workspace:
         # restrictions are not enough. Fingerprint the tests now and check them
         # afterwards: editing the test is failing the task, however it happened.
         self.test_fingerprint = self._fingerprint_tests()
+        self.last_fail_to_pass_met = False
 
     def _fingerprint_tests(self) -> dict[str, str]:
         out = {}
@@ -168,7 +170,9 @@ class Workspace:
             return result.passed, 0, result.output
 
         broken = [t for t in p2p if t not in now]
-        solved = all(t in now for t in f2p) and not broken
+        target_met = all(t in now for t in f2p)
+        self.last_fail_to_pass_met = target_met
+        solved = target_met and not broken
         return solved, len(broken), result.output
 
     def call(self, name: str, args: dict) -> str:
@@ -234,6 +238,7 @@ def finish(record: Attempt, ws: "Workspace", started: float) -> None:
         solved, broken, _ = ws.score()
         record.solved = solved
         record.broke_pass_to_pass = broken
+        record.fail_to_pass_passed = ws.last_fail_to_pass_met
         tampered = ws.tests_were_modified()
         if tampered:
             record.tampered_with_tests = True
@@ -311,6 +316,7 @@ def attempt(repo: Path, task: dict, model: str, cfg: argparse.Namespace, run_ind
         final_solved, broken, _ = ws.score()
         record.solved = solved or final_solved
         record.broke_pass_to_pass = broken
+        record.fail_to_pass_passed = ws.last_fail_to_pass_met
 
         tampered = ws.tests_were_modified()
         if tampered:
