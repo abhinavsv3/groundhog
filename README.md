@@ -180,4 +180,4 @@ files, but validation has only been exercised on Python.
 
 ## License
 
-MIT
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
