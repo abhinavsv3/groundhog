@@ -5,11 +5,11 @@ from __future__ import annotations
 
 import sys
 
-USAGE = """groundhog -- turn a repo's git history into a coding-model benchmark
+USAGE = """groundhog -- replay your git history as a regression test for coding agents
 
   groundhog mine     <repo>   find commits that changed source and tests together
   groundhog validate <repo>   keep only the ones that fail without the fix
-  groundhog run      <repo>   race models against the validated tasks
+  groundhog run      <repo>   run agents against the validated tasks
   groundhog report            print the table and build the leaderboard page
   groundhog compare  <a> <b>  paired comparison of two runs, for CI and ablations
 
