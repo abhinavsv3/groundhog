@@ -1,0 +1,42 @@
+{
+  "submissions": 131,
+  "repos": 11,
+  "cells": 1183,
+  "flag_z": 4.0,
+  "cells_below": 2,
+  "cells_above": 0,
+  "submissions_affected": 2,
+  "share_affected": 0.0153,
+  "hard_zeros": 1,
+  "repo_easiness": {
+    "astropy/astropy": -0.448,
+    "django/django": 0.262,
+    "matplotlib/matplotlib": -0.237,
+    "pallets/flask": 0.483,
+    "psf/requests": 0.169,
+    "pydata/xarray": 0.22,
+    "pylint-dev/pylint": -1.083,
+    "pytest-dev/pytest": 0.297,
+    "scikit-learn/scikit-learn": 0.861,
+    "sphinx-doc/sphinx": -0.46,
+    "sympy/sympy": -0.064
+  },
+  "worst": [
+    {
+      "submission": "verified/20260901_mini-v2.4.2_gemini-3-5-flash",
+      "repo": "matplotlib/matplotlib",
+      "observed": 0.029411764705882353,
+      "expected": 0.650580085485792,
+      "n": 34,
+      "z": -7.596692515328984
+    },
+    {
+      "submission": "verified/20241125_enginelabs",
+      "repo": "sphinx-doc/sphinx",
+      "observed": 0.0,
+      "expected": 0.3858719785189087,
+      "n": 44,
+      "z": -5.257974823267153
+    }
+  ]
+}
