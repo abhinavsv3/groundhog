@@ -51,9 +51,13 @@ small agent loop, but the more useful question is how *your* setup performs.
 An adapter runs an external agent — aider, SWE-agent, Claude Code, opencode —
 against a prepared worktree and lets the same scoring apply.
 
-**Improve environment inference** (hard, highest impact). Right now users supply
-a venv and a test command by hand. That is the single biggest barrier to anyone
-using this. See the issues labelled `environment`.
+**Extend environment inference** (hard, high impact). `environment.py` handles
+Python projects — extras, PEP 735 dependency groups, `requirements*.txt` — and
+caches a venv per repo. It does not handle native extensions, service
+dependencies or unusual build systems, which still need `--venv` and
+`--test-cmd`. Two traps worth knowing: dependency groups are *not* extras
+(`pip install '.[tests]'` exits 0 having installed nothing), and the venv cache
+key must include the install plan or your improvement silently won't apply.
 
 ## What makes a good pull request
 

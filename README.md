@@ -19,11 +19,16 @@ $ groundhog validate ~/src/httpx --venv .venv
 $ groundhog run ~/src/httpx --models anthropic:claude-opus-5,openai:gpt-5.2
 $ groundhog report --site site/index.html
 
-MODEL                    SOLVED    RATE      COST   PER SOLVE   MEDIAN
-----------------------------------------------------------------------
-anthropic:claude-opus-5     6/8     75%     $1.84       $0.31      94s
-openai:gpt-5.2              5/8     63%     $0.42       $0.08      61s
+MODEL                    SOLVED    RATE        95% CI      COST   MEDIAN
+------------------------------------------------------------------------
+anthropic:claude-opus-5     6/8     75%     41% – 93%    $1.84      94s
+openai:gpt-5.2              5/8     62%     31% – 86%    $0.42      61s
 ```
+
+Those intervals overlap almost completely — on 8 tasks, that gap is not a
+result. Groundhog prints the interval next to every rate so the number is harder
+to over-read, and `groundhog compare` runs a paired significance test rather than
+subtracting percentages.
 
 ## Why not just read a leaderboard?
 
@@ -151,7 +156,7 @@ Early, but working end to end.
 
 - [x] Task mining from git history
 - [x] Fail-to-pass validation with worktree isolation
-- [x] Model runner with a sandboxed agent loop
+- [x] Model runner in an isolated worktree with restricted agent tools
 - [x] Terminal report and leaderboard page
 - [x] Local models via Ollama, for $0
 - [x] Automatic environment setup — no venv or test command needed
@@ -228,11 +233,30 @@ If you need training data at scale, use the projects above; they are better at i
 
 ## Honest limitations
 
-**Environments are the hard part.** Groundhog must install your deps and run your
-tests at an arbitrary old commit. Right now you supply the venv and test command.
-Repos with native extensions, service dependencies, or drifting lockfiles will fight
-you. The projects above solved this with an LLM that infers build commands;
-Groundhog has not.
+**What a solve rate actually measures.** Not "the fraction of your bugs an agent
+can fix." Groundhog's tasks are historical changes that happen to satisfy its
+mining criteria: a single commit, touching both source and tests, 3–200 lines,
+at most 5 source files, where the new tests fail without the fix. That
+systematically excludes bugs fixed without a regression test, features,
+refactors, multi-commit work, architectural change, dependency upgrades and
+anything operational. A 40% score means *40% of that slice* — a real and useful
+slice, and a narrow one. Treat it as a comparable index across agent
+configurations, not as an estimate of your bug backlog.
+
+**Environments are inferred, and inference is not guaranteed.** Groundhog reads
+`pyproject.toml`, PEP 735 dependency groups, extras and `requirements*.txt`, then
+builds a cached venv — no flags needed on the five repos above. Repos with native
+extensions, service dependencies or unusual build systems still need `--venv` and
+`--test-cmd`. The projects above solve this with an LLM that infers build
+commands; Groundhog deliberately does not, so that mining and validation need no
+API key.
+
+**This is isolation, not a security sandbox.** The agent can only read and write
+inside a throwaway git worktree, and edits to test files are rejected. But
+building an environment runs that repository's own `pip install` and test suite
+**on your machine**. A repository you do not trust can execute code that way,
+exactly as it could if you cloned and tested it by hand. Do not point Groundhog
+at untrusted code without OS-level isolation of your own.
 
 **Editable installs silently poison results.** A package installed `-e` from the
 original clone shadows the worktree, so a src-layout repo imports the *fixed* code
@@ -246,6 +270,14 @@ fixed and compare models.
 
 **Tests are a proxy for correctness, not correctness.** A model can make tests pass
 in ways the original author would reject in review.
+
+**Public repos may be contaminated.** The repos benchmarked above are popular and
+open; their commits and patches may sit in model training data, which inflates
+scores by an unknown amount. Mining commits merged after a model's cutoff
+mitigates this. Running Groundhog on a **private** repository removes the concern
+almost entirely — an evaluation distribution nobody has trained on is one of the
+better reasons to use this on your own code rather than reading a public
+leaderboard.
 
 **Python only, for now.** The mining patterns recognise Go, Rust, TS and JS test
 files, but validation has only been exercised on Python.

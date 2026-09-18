@@ -8,6 +8,8 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+from .stats import tasks_needed, wilson
+
 BOLD, DIM, GREEN, RED, RESET = "\033[1m", "\033[2m", "\033[32m", "\033[31m", "\033[0m"
 
 
@@ -21,12 +23,15 @@ def summarise(records: list[dict]) -> list[dict]:
         solved = sum(1 for a in attempts if a["solved"])
         costs = [a["cost_usd"] for a in attempts if a.get("cost_usd") is not None]
         times = sorted(a["seconds"] for a in attempts)
+        lo, hi = wilson(solved, len(attempts))
         rows.append(
             {
                 "model": model,
                 "solved": solved,
                 "total": len(attempts),
                 "pass_rate": solved / len(attempts) if attempts else 0.0,
+                "ci_low": lo,
+                "ci_high": hi,
                 "cost": sum(costs) if costs else None,
                 "cost_per_solve": (sum(costs) / solved) if costs and solved else None,
                 "median_seconds": times[len(times) // 2] if times else 0.0,
@@ -47,17 +52,29 @@ def print_table(rows: list[dict], records: list[dict]) -> None:
 
     width = max(len(r["model"]) for r in rows) + 2
     print()
-    print(f"{BOLD}{'MODEL':<{width}}{'SOLVED':>8}{'RATE':>8}{'COST':>10}{'PER SOLVE':>12}{'MEDIAN':>9}{RESET}")
-    print(DIM + "-" * (width + 47) + RESET)
+    print(f"{BOLD}{'MODEL':<{width}}{'SOLVED':>8}{'RATE':>7}{'95% CI':>15}{'COST':>10}{'PER SOLVE':>12}{'MEDIAN':>9}{RESET}")
+    print(DIM + "-" * (width + 61) + RESET)
     for i, r in enumerate(rows):
         lead = BOLD if i == 0 else ""
+        band = f"{r['ci_low'] * 100:.0f}% – {r['ci_high'] * 100:.0f}%"
         print(
             f"{lead}{r['model']:<{width}}"
             f"{str(r['solved']) + '/' + str(r['total']):>8}"
-            f"{r['pass_rate'] * 100:>7.0f}%"
+            f"{r['pass_rate'] * 100:>6.0f}%"
+            f"{band:>15}"
             f"{money(r['cost']):>10}"
             f"{money(r['cost_per_solve']):>12}"
             f"{r['median_seconds']:>8.0f}s{RESET}"
+        )
+
+    # Two overlapping intervals are not a ranking. Say so rather than letting the
+    # order of the rows imply a result the data cannot support.
+    if len(rows) >= 2 and rows[0]["ci_low"] < rows[1]["ci_high"]:
+        need = tasks_needed(rows[1]["pass_rate"], max(0.01, rows[0]["pass_rate"] - rows[1]["pass_rate"]))
+        print(
+            f"\n{DIM}  The top two intervals overlap — this ordering is not a result. "
+            f"Separating them\n  would need roughly {need} tasks (you have {rows[0]['total']}), "
+            f"or use `groundhog compare`\n  for a paired test, which needs far fewer.{RESET}"
         )
 
     tasks = sorted({r["task_id"]: r["subject"] for r in records}.items())

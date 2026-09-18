@@ -105,3 +105,15 @@ class TestPower:
     def test_known_ballpark(self):
         # 40% -> 50% at 80% power is a few hundred per arm
         assert 300 < stats.tasks_needed(0.40, 0.10) < 500
+
+
+class TestPowerEdgeCases:
+    def test_handles_a_rate_of_one(self):
+        """Common on small task sets; the normal approximation is undefined there."""
+        assert stats.tasks_needed(0.875, 0.125) > 0
+
+    def test_handles_a_rate_of_zero(self):
+        assert stats.tasks_needed(0.0, 0.20) > 0
+
+    def test_no_effect_needs_nothing(self):
+        assert stats.tasks_needed(0.5, 0.0) == 0

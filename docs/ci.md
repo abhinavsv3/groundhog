@@ -1,6 +1,6 @@
 # Running Groundhog continuously
 
-The single-run question — "what fraction of our bugs can an agent close?" — is
+The single-run question — "what share of these tasks can an agent close?" — is
 answered once and then forgotten. The recurring question is more useful:
 
 > **Did the change we just made to our agent setup help or hurt?**
@@ -122,7 +122,11 @@ will tell you so by reporting how few tasks are shared.
 
 ## What this cannot tell you
 
-That your agent is *good*. It tells you whether it got better or worse at closing
-bugs your team already fixed once, with tests that already existed. A model can
+That your agent is *good*, or what fraction of your real backlog it could handle.
+The task set is historical changes that met Groundhog's mining criteria — single
+commits with tests, 3–200 lines — which excludes features, refactors,
+multi-commit work and anything fixed without a regression test. It tells you
+whether the agent got better or worse at closing bugs your team already fixed
+once, with tests that already existed. A model can
 make tests pass in ways a reviewer would reject, and this will score that as a
 win.

@@ -132,8 +132,11 @@ def tasks_needed(baseline: float, effect: float, power: float = 0.80) -> int:
     never have detected. Pairing does better than this, but the number is a
     useful floor.
     """
-    p1, p2 = baseline, baseline + effect
-    if not 0 < p1 < 1 or not 0 < p2 < 1:
+    # Clamp away from the boundaries: the normal approximation is undefined at
+    # exactly 0 or 1, and a rate of 1.0 is common on small task sets.
+    p1 = min(max(baseline, 0.01), 0.99)
+    p2 = min(max(baseline + effect, 0.01), 0.99)
+    if abs(p2 - p1) < 1e-9:
         return 0
     z_alpha, z_beta = 1.96, 0.84 if power <= 0.8 else 1.28
     pooled = (p1 + p2) / 2
