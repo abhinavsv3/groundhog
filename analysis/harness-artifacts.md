@@ -37,16 +37,25 @@ misspecification, since both come from the same fit.
 
 ## Result
 
-131 submissions × 11 repositories = 1,183 cells, from the public
+122 submissions × 9 repositories = 1,098 cells, from the public
 [SWE-bench experiments](https://github.com/SWE-bench/experiments) repository.
+
+**Data integrity gate.** 13 submissions were excluded first. Their
+`resolved_by_repo.json` carries full test-split denominators (2,294) rather than
+the Verified subset (500), deflating their rates ~3.7x — independently reported
+as [experiments#484](https://github.com/SWE-bench/experiments/issues/484).
+Rather than hard-coding them, the loader takes the modal denominator per
+repository as ground truth and drops disagreements; this recovers exactly those
+13 and will catch whatever the next bookkeeping bug is. Fitting on them
+manufactures outliers.
 
 | z threshold | Below expectation | Above | Expected per tail | Enrichment |
 |---|---|---|---|---|
-| ≥ 2.0 | 23 | 21 | 26.9 | 0.9× |
-| ≥ 2.5 | 14 | 7 | 7.3 | 1.9× |
-| ≥ 3.0 | 7 | 2 | 1.6 | 4.4× |
-| ≥ 3.5 | 4 | 1 | 0.3 | 14.5× |
-| ≥ 4.0 | **2** | **0** | 0.04 | 53× |
+| ≥ 2.0 | 17 | 14 | 25.0 | 0.7× |
+| ≥ 2.5 | 10 | 2 | 6.8 | 1.5× |
+| ≥ 3.0 | 5 | 1 | 1.5 | 3.4× |
+| ≥ 3.5 | 3 | 1 | 0.3 | 11.7× |
+| ≥ 4.0 | **2** | **0** | 0.03 | 57× |
 
 At z ≥ 2 the tails are symmetric — that is noise. As the threshold rises the
 negative tail pulls away monotonically while the positive tail stays at or below
@@ -72,7 +81,14 @@ chance in the direction infrastructure failure predicts.
 **Does not:** prove any specific submission had a harness bug. Only the
 submitters' logs can do that. This says where to look.
 
-**Scale, honestly:** 2 of 1,183 cells at z ≥ 4, and 7 at z ≥ 3. Harness artifacts
+**Alternative explanations worth ruling out first.** A flagged cell can also be a
+bookkeeping error rather than a broken environment — see
+[experiments#480](https://github.com/SWE-bench/experiments/issues/480), where a
+submission's per-instance `resolved` labels were all false while the run itself
+was real. For the two cells below, the submissions' own aggregates agree with
+their per-repo sums, so the recorded numbers are at least internally consistent.
+
+**Scale, honestly:** 2 of 1,098 cells at z ≥ 4, and 5 at z ≥ 3. Harness artifacts
 in the public record are **detectable but rare** — not the widespread
 contamination one might assume from how easily we produced four of them
 ourselves. The contrast is itself interesting: careful submitters mostly get this

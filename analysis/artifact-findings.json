@@ -1,42 +1,55 @@
 {
-  "submissions": 131,
-  "repos": 11,
-  "cells": 1183,
+  "submissions": 122,
+  "excluded_submissions": [
+    "verified/20231010_rag_claude2",
+    "verified/20231010_rag_gpt35",
+    "verified/20231010_rag_swellama13b",
+    "verified/20231010_rag_swellama7b",
+    "verified/20240402_rag_claude3opus",
+    "verified/20240402_rag_gpt4",
+    "verified/20240402_sweagent_claude3opus",
+    "verified/20240402_sweagent_gpt4",
+    "verified/20240509_amazon-q-developer-agent-20240430-dev",
+    "verified/20240615_appmap-navie_gpt4o",
+    "verified/20240617_factory_code_droid",
+    "verified/20240628_autocoderover-v20240620",
+    "verified/20240721_amazon-q-developer-agent-20240719-dev"
+  ],
+  "repos": 9,
+  "cells": 1098,
   "flag_z": 4.0,
   "cells_below": 2,
   "cells_above": 0,
   "submissions_affected": 2,
-  "share_affected": 0.0153,
+  "share_affected": 0.0164,
   "hard_zeros": 1,
   "repo_easiness": {
-    "astropy/astropy": -0.448,
-    "django/django": 0.262,
-    "matplotlib/matplotlib": -0.237,
-    "pallets/flask": 0.483,
-    "psf/requests": 0.169,
-    "pydata/xarray": 0.22,
-    "pylint-dev/pylint": -1.083,
-    "pytest-dev/pytest": 0.297,
-    "scikit-learn/scikit-learn": 0.861,
-    "sphinx-doc/sphinx": -0.46,
-    "sympy/sympy": -0.064
+    "astropy/astropy": -0.429,
+    "django/django": 0.301,
+    "matplotlib/matplotlib": -0.176,
+    "pydata/xarray": 0.313,
+    "pylint-dev/pylint": -1.079,
+    "pytest-dev/pytest": 0.41,
+    "scikit-learn/scikit-learn": 1.063,
+    "sphinx-doc/sphinx": -0.397,
+    "sympy/sympy": -0.006
   },
   "worst": [
     {
       "submission": "verified/20260901_mini-v2.4.2_gemini-3-5-flash",
       "repo": "matplotlib/matplotlib",
       "observed": 0.029411764705882353,
-      "expected": 0.650580085485792,
+      "expected": 0.6516973738596266,
       "n": 34,
-      "z": -7.596692515328984
+      "z": -7.616016149234623
     },
     {
       "submission": "verified/20241125_enginelabs",
       "repo": "sphinx-doc/sphinx",
       "observed": 0.0,
-      "expected": 0.3858719785189087,
+      "expected": 0.38695632702979155,
       "n": 44,
-      "z": -5.257974823267153
+      "z": -5.270012035042121
     }
   ]
 }

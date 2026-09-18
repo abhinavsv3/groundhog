@@ -41,10 +41,22 @@ FLAG_Z = 4.0            # standardised residual worth investigating
 EPS = 1e-6
 
 
-def load(root: Path) -> dict[str, dict[str, tuple[int, int]]]:
-    out: dict[str, dict[str, tuple[int, int]]] = {}
+def load(root: Path) -> tuple[dict[str, dict[str, tuple[int, int]]], list[str]]:
+    """Load per-repo results, discarding submissions whose denominators are wrong.
+
+    Not every published file is trustworthy. Thirteen historical Verified files
+    carry the full test-split totals (2,294) rather than the Verified subset
+    (500), which deflates their rates by roughly 3.7x -- see SWE-bench/experiments
+    issue #484. Fitting on them would drag the model and manufacture outliers.
+
+    Rather than hard-coding those thirteen, we take the modal denominator per
+    repository across all submissions as ground truth and drop any submission
+    that disagrees. That generalises to whatever the next bookkeeping bug is.
+    """
+    raw_rows: dict[str, dict[str, tuple[int, int]]] = {}
     for path in sorted(root.glob("evaluation/*/*/results/resolved_by_repo.json")):
-        name = f"{path.parents[2].name}/{path.parents[1].name}"
+        split = path.parents[2].name
+        name = f"{split}/{path.parents[1].name}"
         try:
             raw = json.loads(path.read_text())
         except (json.JSONDecodeError, OSError):
@@ -52,11 +64,31 @@ def load(root: Path) -> dict[str, dict[str, tuple[int, int]]]:
         rows = {
             repo: (int(v["resolved"]), int(v["total"]))
             for repo, v in raw.items()
-            if isinstance(v, dict) and int(v.get("total", 0)) >= MIN_INSTANCES
+            if isinstance(v, dict) and int(v.get("total", 0)) > 0
         }
-        if len(rows) >= MIN_REPOS:
-            out[name] = rows
-    return out
+        if rows:
+            raw_rows[name] = rows
+
+    # modal denominator per (split, repo)
+    tallies: dict[tuple[str, str], dict[int, int]] = {}
+    for name, rows in raw_rows.items():
+        split = name.split("/", 1)[0]
+        for repo, (_, total) in rows.items():
+            tallies.setdefault((split, repo), {})
+            tallies[(split, repo)][total] = tallies[(split, repo)].get(total, 0) + 1
+    expected = {key: max(counts, key=counts.get) for key, counts in tallies.items()}
+
+    out: dict[str, dict[str, tuple[int, int]]] = {}
+    rejected: list[str] = []
+    for name, rows in raw_rows.items():
+        split = name.split("/", 1)[0]
+        if any(total != expected.get((split, repo), total) for repo, (_, total) in rows.items()):
+            rejected.append(name)
+            continue
+        kept = {r: v for r, v in rows.items() if v[1] >= MIN_INSTANCES}
+        if len(kept) >= MIN_REPOS:
+            out[name] = kept
+    return out, rejected
 
 
 def logit(p: float) -> float:
@@ -151,10 +183,19 @@ def main() -> int:
     ap.add_argument("--json", type=Path)
     cfg = ap.parse_args()
 
-    data = load(cfg.experiments)
+    data, rejected = load(cfg.experiments)
     if not data:
         print("no usable results found", file=sys.stderr)
         return 1
+
+    if rejected:
+        print(f"\nexcluded {len(rejected)} submissions with denominators that "
+              f"disagree with the modal split size:")
+        for name in rejected[:6]:
+            print(f"  {name}")
+        if len(rejected) > 6:
+            print(f"  ... and {len(rejected) - 6} more")
+        print("  (see SWE-bench/experiments#484 -- fitting on these manufactures outliers)")
 
     cells = sum(len(v) for v in data.values())
     repos = sorted({r for rows in data.values() for r in rows})
@@ -207,6 +248,7 @@ def main() -> int:
 
     findings = {
         "submissions": len(data),
+        "excluded_submissions": rejected,
         "repos": len(repos),
         "cells": len(res),
         "flag_z": cfg.flag_z,
