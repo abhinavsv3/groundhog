@@ -210,7 +210,7 @@ sidebar will generate BibTeX and APA for you.
 ```bibtex
 @software{sv_groundhog_2026,
   author  = {S V, Abhinav},
-  title   = {{Groundhog}: Turning Git History into Coding-Model Benchmarks},
+  title   = {{Groundhog}: Replaying Git History as a Regression Test for Coding Agents},
   year    = {2026},
   version = {0.1.0},
   url     = {https://github.com/abhinavsv3/groundhog},

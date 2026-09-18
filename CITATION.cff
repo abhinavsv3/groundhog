@@ -4,7 +4,7 @@ type: software
 title: "Groundhog"
 abstract: >-
   Groundhog turns a repository's own commit history into a verified benchmark for
-  coding models and agents. Commits that change source and tests together are
+  coding agents. Commits that change source and tests together are
   mined as candidate tasks, then validated by running the test suite twice: once
   without the original fix, where it must fail, and once with it, where it must
   pass. Because tasks are derived from commits, a repository's recent history

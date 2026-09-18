@@ -1,7 +1,7 @@
 [project]
 name = "groundhog"
 version = "0.1.0"
-description = "Turn any repo's git history into a coding-model benchmark"
+description = "Replay your git history as a regression test for coding agents"
 authors = [{ name = "Abhinav" }]
 keywords = ["benchmark", "llm", "evaluation", "coding-agents", "swe-bench"]
 readme = "README.md"
