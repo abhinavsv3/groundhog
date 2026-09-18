@@ -43,6 +43,7 @@ class Attempt:
     task_id: str
     subject: str
     model: str
+    run_index: int = 0
     solved: bool = False
     turns: int = 0
     seconds: float = 0.0
@@ -169,8 +170,8 @@ class Workspace:
         return f"error: unknown tool {name}"
 
 
-def attempt(repo: Path, task: dict, model: str, cfg: argparse.Namespace) -> Attempt:
-    record = Attempt(repo=repo.name, task_id=task["sha"][:12], subject=task["subject"], model=model)
+def attempt(repo: Path, task: dict, model: str, cfg: argparse.Namespace, run_index: int = 0) -> Attempt:
+    record = Attempt(repo=repo.name, task_id=task["sha"][:12], subject=task["subject"], model=model, run_index=run_index)
     started = time.monotonic()
     ws = Workspace(repo, task, cfg.venv, cfg.test_cmd, cfg.timeout)
 
@@ -239,6 +240,8 @@ def main() -> int:
     ap.add_argument("--max-turns", type=int, default=25)
     ap.add_argument("--max-nudges", type=int, default=2, help="times to push back on a premature finish")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--repeats", type=int, default=1,
+                    help="attempts per task; >1 is required for any claim about a small effect")
     cfg = ap.parse_args()
 
     if cfg.venv is None and not cfg.no_auto_env:
@@ -259,24 +262,28 @@ def main() -> int:
         print("no tasks -- run mine and validate first", file=sys.stderr)
         return 1
 
-    print(f"{len(models)} models x {len(tasks)} tasks = {len(models) * len(tasks)} attempts\n", file=sys.stderr)
+    total = len(models) * len(tasks) * cfg.repeats
+    print(f"{len(models)} models x {len(tasks)} tasks x {cfg.repeats} repeats = {total} attempts\n", file=sys.stderr)
     cfg.out.parent.mkdir(parents=True, exist_ok=True)
     records: list[Attempt] = []
 
     with cfg.out.open("w") as fh:
         for model in models:
-            solved = 0
-            for i, task in enumerate(tasks, 1):
-                label = f"{model:<32} [{i}/{len(tasks)}] {task['subject'][:38]}"
-                print(f"{label:<88}", end="", flush=True, file=sys.stderr)
-                rec = attempt(cfg.repo, task, model, cfg)
-                records.append(rec)
-                fh.write(json.dumps(asdict(rec)) + "\n")
-                fh.flush()
-                solved += rec.solved
-                mark = "PASS" if rec.solved else ("ERROR" if rec.error else "fail")
-                print(f"  {mark:<5} {rec.seconds:>6.1f}s  {rec.error[:40]}", file=sys.stderr)
-            print(f"{'':<32} -> {solved}/{len(tasks)}\n", file=sys.stderr)
+            solved = attempted = 0
+            for run_index in range(cfg.repeats):
+                for i, task in enumerate(tasks, 1):
+                    tag = f" r{run_index + 1}" if cfg.repeats > 1 else ""
+                    label = f"{model:<32}{tag} [{i}/{len(tasks)}] {task['subject'][:34]}"
+                    print(f"{label:<88}", end="", flush=True, file=sys.stderr)
+                    rec = attempt(cfg.repo, task, model, cfg, run_index)
+                    records.append(rec)
+                    fh.write(json.dumps(asdict(rec)) + "\n")
+                    fh.flush()
+                    solved += rec.solved
+                    attempted += 1
+                    mark = "PASS" if rec.solved else ("ERROR" if rec.error else "fail")
+                    print(f"  {mark:<5} {rec.seconds:>6.1f}s  {rec.error[:40]}", file=sys.stderr)
+            print(f"{'':<32} -> {solved}/{attempted}\n", file=sys.stderr)
 
     print(f"{len(records)} attempts -> {cfg.out}", file=sys.stderr)
     return 0

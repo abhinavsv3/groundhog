@@ -11,6 +11,7 @@ USAGE = """groundhog -- turn a repo's git history into a coding-model benchmark
   groundhog validate <repo>   keep only the ones that fail without the fix
   groundhog run      <repo>   race models against the validated tasks
   groundhog report            print the table and build the leaderboard page
+  groundhog compare  <a> <b>  paired comparison of two runs, for CI and ablations
 
 Each command takes --help.
 """
@@ -30,6 +31,8 @@ def main() -> int:
         from .run import main as run_it
     elif command == "report":
         from .report import main as run_it
+    elif command == "compare":
+        from .compare import main as run_it
     else:
         print(f"unknown command {command!r}\n\n{USAGE}", file=sys.stderr)
         return 2

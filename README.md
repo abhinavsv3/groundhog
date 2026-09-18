@@ -106,6 +106,10 @@ python -m groundhog mine     /path/to/repo --since "6 months ago"
 python -m groundhog validate /path/to/repo
 python -m groundhog run      /path/to/repo --models anthropic:claude-opus-5,openai:gpt-5.2
 python -m groundhog report   --site site/index.html --repo owner/name
+
+# did a change to your agent setup help or hurt?
+python -m groundhog compare results/baseline.jsonl results/current.jsonl \
+    --fail-on-regression
 ```
 
 Models are named `provider:model`. Anything with an OpenAI-compatible API
@@ -153,7 +157,8 @@ Early, but working end to end.
 - [x] Automatic environment setup — no venv or test command needed
 - [ ] [Languages beyond Python](../../issues?q=is%3Aissue+label%3Alanguage)
 - [ ] [External agent adapters](../../issues/4)
-- [ ] [Repeats and confidence intervals](../../issues/5)
+- [x] Repeats, Wilson intervals and paired significance testing
+- [x] Regression tracking (`groundhog compare`) and a CI workflow
 
 ## Contributing
 
@@ -164,6 +169,8 @@ together and where to start.
 - [Good first issues](../../issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 - [Help wanted](../../issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 - [What people use this for](docs/use-cases.md)
+- [Using Groundhog for research](docs/research.md)
+- [Running it continuously](docs/ci.md)
 
 The most wanted contributions are **a new language** (mining already recognises
 Go, Rust, TS and JS test files — only validation is Python-only) and **automatic

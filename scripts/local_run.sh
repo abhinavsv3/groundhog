@@ -8,6 +8,13 @@
 # dependencies installed, and tasks/<repo>-validated.jsonl already mined.
 set -uo pipefail
 
+# A full run takes hours. On macOS, let the display sleep but keep the system
+# awake -- otherwise the run dies partway through and you find out later.
+if [[ "$(uname)" == "Darwin" && -z "${GROUNDHOG_CAFFEINATED:-}" ]]; then
+  export GROUNDHOG_CAFFEINATED=1
+  exec caffeinate -i -s "$0" "$@"
+fi
+
 REPOS_DIR="${REPOS_DIR:?set REPOS_DIR to the directory holding the cloned repos}"
 MODELS="${MODELS:-openai:qwen2.5-coder:7b,openai:qwen2.5-coder:14b,openai:qwen3:8b,openai:llama3.1:latest}"
 MAX_TURNS="${MAX_TURNS:-14}"
