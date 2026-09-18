@@ -27,15 +27,31 @@ openai:gpt-5.2              5/8     63%     $0.42       $0.08      61s
 
 ## Why not just read a leaderboard?
 
-Public benchmarks tell you which model is best at Django and sympy internals.
-That is a real fact about the world and a poor predictor of how a model behaves in
-your TypeScript monorepo with unusual conventions and a slow test suite.
+We tested that premise before making the claim, and it mostly did not hold.
 
-Arena's own numbers show how unstable these rankings are: a model sitting at #5
-overall lands at #32 on coding, while one at #24 overall takes #1 on webdev. If
-changing the *category* moves a model 27 places, changing the *repo* may too.
+Using SWE-bench's published per-repo results (130 leaderboard submissions across
+10 repositories), repos agree strongly on how to rank models: **mean Spearman
+rho of 0.88**, and in pairs of models separated by at least 5% overall, the worse
+model wins on a given repo only **3.3%** of the time. Pick the top model off a
+public leaderboard and you will be right on your repo almost always.
 
-Groundhog answers the narrower question: **which model is best here?**
+So Groundhog will rarely change *which* model you choose. What it tells you is
+something the leaderboards cannot:
+
+**Absolute capability does not transfer at all.** The median model swings **35
+percentage points** between its best and worst repository -- the same agent
+solving 76% of scikit-learn tasks solves 36% of sphinx tasks. "Model X is 75% on
+SWE-bench" predicts almost nothing about what fraction of *your* bugs it will fix.
+
+That is the number you need before pointing an agent at a backlog, and the only
+way to get it is to measure on your own code.
+
+Reproduce the analysis yourself:
+
+```bash
+git clone --filter=blob:none --sparse https://github.com/SWE-bench/experiments
+python analysis/divergence.py experiments
+```
 
 ## How a task is built
 

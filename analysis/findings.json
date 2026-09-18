@@ -1,0 +1,22 @@
+{
+  "submissions": 135,
+  "models": 130,
+  "repos": [
+    "astropy/astropy",
+    "django/django",
+    "matplotlib/matplotlib",
+    "psf/requests",
+    "pydata/xarray",
+    "pylint-dev/pylint",
+    "pytest-dev/pytest",
+    "scikit-learn/scikit-learn",
+    "sphinx-doc/sphinx",
+    "sympy/sympy"
+  ],
+  "mean_spearman": 0.884,
+  "repo_pairs": 21,
+  "flips": 1604,
+  "comparisons": 49064,
+  "flip_rate": 0.0327,
+  "median_spread": 0.3494
+}
