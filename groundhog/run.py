@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import hashlib
+import math
 import shutil
 import subprocess
 import sys
@@ -249,6 +250,22 @@ def already_done(path: Path) -> set[tuple[str, str, int]]:
     return done
 
 
+def recorded_spend(path: Path) -> float:
+    """Sum known attempt costs from a JSONL run, ignoring unknown/malformed rows."""
+    if not path.exists():
+        return 0.0
+    total = 0.0
+    for line in path.read_text().splitlines():
+        try:
+            cost = json.loads(line).get("cost_usd")
+            if (isinstance(cost, (int, float)) and not isinstance(cost, bool)
+                    and math.isfinite(cost) and cost >= 0):
+                total += cost
+        except (json.JSONDecodeError, AttributeError):
+            continue
+    return total
+
+
 def patch_dir(cfg: argparse.Namespace) -> Path | None:
     if getattr(cfg, "no_patches", False):
         return None
@@ -437,7 +454,12 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--repeats", type=int, default=1,
                     help="attempts per task; >1 is required for any claim about a small effect")
+    ap.add_argument("--max-spend", type=float,
+                    help="stop starting attempts once known model spend reaches this USD amount")
     cfg = ap.parse_args()
+
+    if cfg.max_spend is not None and (not math.isfinite(cfg.max_spend) or cfg.max_spend < 0):
+        ap.error("--max-spend must be a finite, non-negative amount")
 
     if cfg.venv is None and not cfg.no_auto_env:
         try:
@@ -459,6 +481,18 @@ def main() -> int:
 
     total = len(models) * len(tasks) * cfg.repeats
     done = already_done(cfg.out) if cfg.resume else set()
+    spent = recorded_spend(cfg.out) if cfg.resume else 0.0
+    if cfg.max_spend is not None:
+        if spent:
+            print(f"known spend already recorded: ${spent:.2f}", file=sys.stderr)
+        if cfg.agent_cmd:
+            print("warning: external agent usage is not priced; --max-spend cannot account for its cost",
+                  file=sys.stderr)
+        else:
+            for model in models:
+                if price_of(model, Usage()) is None:
+                    print(f"warning: no pricing for {model}; --max-spend cannot account for its cost",
+                          file=sys.stderr)
     print(f"{len(models)} models x {len(tasks)} tasks x {cfg.repeats} repeats = {total} attempts",
           file=sys.stderr)
     if cfg.resume:
@@ -473,14 +507,19 @@ def main() -> int:
 
     cfg.out.parent.mkdir(parents=True, exist_ok=True)
     records: list[Attempt] = []
+    attempted = 0
+    stop_for_budget = False
 
     with cfg.out.open("a" if cfg.resume else "w") as fh:
         for model in models:
-            solved = attempted = 0
+            solved = model_attempted = 0
             for run_index in range(cfg.repeats):
                 for i, task in enumerate(tasks, 1):
                     if (task["sha"][:12], model, run_index) in done:
                         continue
+                    if cfg.max_spend is not None and spent >= cfg.max_spend:
+                        stop_for_budget = True
+                        break
                     tag = f" r{run_index + 1}" if cfg.repeats > 1 else ""
                     label = f"{model:<32}{tag} [{i}/{len(tasks)}] {task['subject'][:34]}"
                     print(f"{label:<88}", end="", flush=True, file=sys.stderr)
@@ -488,13 +527,28 @@ def main() -> int:
                     records.append(rec)
                     fh.write(json.dumps(asdict(rec)) + "\n")
                     fh.flush()
+                    if rec.cost_usd is not None:
+                        spent += rec.cost_usd
                     solved += rec.solved
+                    model_attempted += 1
                     attempted += 1
                     mark = "PASS" if rec.solved else ("ERROR" if rec.error else "fail")
                     print(f"  {mark:<5} {rec.seconds:>6.1f}s  {rec.error[:40]}", file=sys.stderr)
-            print(f"{'':<32} -> {solved}/{attempted}\n", file=sys.stderr)
+                if stop_for_budget:
+                    break
+            print(f"{'':<32} -> {solved}/{model_attempted}\n", file=sys.stderr)
+            if stop_for_budget:
+                break
 
     print(f"{len(records)} attempts -> {cfg.out}", file=sys.stderr)
+    if stop_for_budget:
+        planned = {
+            (t["sha"][:12], model, r)
+            for t in tasks for model in models for r in range(cfg.repeats)
+        }
+        skipped = max(0, len(planned - done) - attempted)
+        print(f"--max-spend reached (${spent:.2f} known); skipped {skipped} attempts",
+              file=sys.stderr)
     return 0
 
 

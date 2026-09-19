@@ -127,6 +127,7 @@ way a benchmark run dies on somebody's laptop.
 python -m groundhog mine     /path/to/repo --since "6 months ago"
 python -m groundhog validate /path/to/repo
 python -m groundhog run      /path/to/repo --models anthropic:claude-opus-5,openai:gpt-5.2
+python -m groundhog run      /path/to/repo --models openai:gpt-5.2 --max-spend 50 --resume
 
 # or benchmark the agent you actually use
 python -m groundhog run /path/to/repo \
@@ -141,6 +142,11 @@ python -m groundhog compare results/baseline.jsonl results/current.jsonl \
 Models are named `provider:model`. Anything with an OpenAI-compatible API
 (OpenRouter, Together, Groq, vLLM, Ollama) works through the `openai` provider with
 `GROUNDHOG_OPENAI_BASE_URL` pointed at it.
+
+`--max-spend` stops starting attempts after known, priced model usage reaches the
+USD limit. An individual attempt may take the total over the limit; models without
+known pricing (including external agents) are warned about and cannot be counted.
+With `--resume`, costs recorded in the existing results file count toward the limit.
 
 ## Running it for free
 
@@ -194,6 +200,7 @@ Early, but working end to end.
 - [x] Repeats, Wilson intervals and paired significance testing
 - [x] Task deduplication, so related commits are not counted as independent
 - [x] `--resume` for interrupted runs, and each attempt's diff saved
+- [x] `--max-spend` to stop priced runs at a known USD ceiling
 - [x] Regression tracking (`groundhog compare`) and a CI workflow
 
 ## Contributing
