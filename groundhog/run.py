@@ -40,6 +40,38 @@ MAX_FILE_BYTES = 120_000
 
 
 @dataclass
+class ToolStats:
+    """How an attempt went, not just whether it succeeded.
+
+    Solve rate on 100 tasks gives 100 observations, mostly zeros for a small
+    model. The same runs produce thousands of tool calls, and those differ
+    between models even when nobody solves anything -- which is the only way to
+    measure a laptop-sized model, or to detect an effect too small to move a
+    pass rate.
+    """
+
+    calls: int = 0
+    errors: int = 0              # a tool returned an error string
+    unknown_tool: int = 0        # called something that does not exist
+    malformed_args: int = 0      # arguments were not a usable object
+    recovered_from_text: int = 0 # tool call arrived as prose, not a tool_call
+    first_edit_turn: int | None = None
+    by_name: dict[str, int] = field(default_factory=dict)
+
+    def record(self, name: str, result: str, turn: int, known: set[str]) -> None:
+        self.calls += 1
+        self.by_name[name] = self.by_name.get(name, 0) + 1
+        if name not in known:
+            self.unknown_tool += 1
+        if result.startswith("error:"):
+            self.errors += 1
+            if "arguments" in result or "no such" in result:
+                self.malformed_args += 1
+        elif name == "write_file" and self.first_edit_turn is None:
+            self.first_edit_turn = turn
+
+
+@dataclass
 class Attempt:
     repo: str
     task_id: str
@@ -58,6 +90,7 @@ class Attempt:
     fail_to_pass_passed: bool = False  # would a FAIL_TO_PASS-only harness call this solved?
     p2p_scope: str = "file"
     patch_file: str = ""
+    tools: dict = field(default_factory=dict)
     tampered_with_tests: bool = False
     error: str = ""
     files_touched: list[str] = field(default_factory=list)
@@ -112,6 +145,9 @@ class Workspace:
         self.test_files = set(task["test_files"])
         self.test_cmd = test_cmd.format(tests=" ".join(task["test_files"]))
         self.touched: list[str] = []
+        self.stats = ToolStats()
+        self.turn = 0
+        self.known_tools = {"list_files", "read_file", "write_file", "run_tests"}
 
         git(repo, "worktree", "add", "--detach", "--quiet", str(self.tree), task["parent"])
         git(self.tree, "checkout", task["sha"], "--", *task["test_files"])
@@ -184,9 +220,11 @@ class Workspace:
     def call(self, name: str, args: dict) -> str:
         """Dispatch a tool call. A bad argument is feedback, never a crash."""
         try:
-            return self._call(name, args)
+            result = self._call(name, args)
         except Exception as exc:
-            return f"error: {type(exc).__name__}: {exc}"
+            result = f"error: {type(exc).__name__}: {exc}"
+        self.stats.record(name, result, self.turn, self.known_tools)
+        return result
 
     def _call(self, name: str, args: dict) -> str:
         if name == "list_files":
@@ -320,14 +358,24 @@ def save_patch(ws: "Workspace", record: Attempt, out_dir: Path) -> None:
         pass  # a missing patch must never fail an otherwise good attempt
 
 
-def finish(record: Attempt, ws: "Workspace", started: float, out_dir: Path | None = None) -> None:
-    """Grade an attempt and close its workspace. Applies to any agent."""
+def finish(record: Attempt, ws: "Workspace", started: float,
+           out_dir: Path | None = None, solved_already: bool = False) -> None:
+    """Grade an attempt and close its workspace.
+
+    The single scoring path for every agent. It was two for a while -- this one
+    and a copy inlined in the built-in loop -- and the copy silently drifted:
+    the built-in loop never saved a patch and never recorded p2p_scope, because
+    an edit that was supposed to add them did not match and nobody checked.
+    One path means that cannot happen again.
+    """
     try:
         record.p2p_scope = ws.task.get("p2p_scope", "file")
+        record.tools = asdict(ws.stats)
+        record.files_touched = record.files_touched or ws.touched
         if out_dir is not None:
             save_patch(ws, record, out_dir)
         solved, broken, _ = ws.score()
-        record.solved = solved
+        record.solved = solved or solved_already
         record.broke_pass_to_pass = broken
         record.fail_to_pass_passed = ws.last_fail_to_pass_met
         tampered = ws.tests_were_modified()
@@ -345,6 +393,7 @@ def finish(record: Attempt, ws: "Workspace", started: float, out_dir: Path | Non
 def attempt(repo: Path, task: dict, model: str, cfg: argparse.Namespace, run_index: int = 0) -> Attempt:
     record = Attempt(repo=repo.name, task_id=task["sha"][:12], subject=task["subject"], model=model, run_index=run_index)
     started = time.monotonic()
+    solved = False
     ws = Workspace(repo, task, cfg.venv, cfg.test_cmd, cfg.timeout)
 
     if getattr(cfg, "agent_cmd", None):
@@ -378,10 +427,13 @@ def attempt(repo: Path, task: dict, model: str, cfg: argparse.Namespace, run_ind
         )
 
         tools = tools_for(ws.test_files)
-        solved = False
         for turn in range(cfg.max_turns):
             record.turns = turn + 1
+            ws.turn = turn + 1
             reply = chat.reply(tools)
+            ws.stats.recovered_from_text += sum(
+                1 for c in reply.tool_calls if c.id.startswith("text_")
+            )
 
             if reply.done:
                 # Never take "I'm finished" on trust -- check, and push back once
@@ -404,16 +456,6 @@ def attempt(repo: Path, task: dict, model: str, cfg: argparse.Namespace, run_ind
                 [(c.id, ws.call(c.name, c.args if isinstance(c.args, dict) else {})) for c in reply.tool_calls]
             )
 
-        final_solved, broken, _ = ws.score()
-        record.solved = solved or final_solved
-        record.broke_pass_to_pass = broken
-        record.fail_to_pass_passed = ws.last_fail_to_pass_met
-
-        tampered = ws.tests_were_modified()
-        if tampered:
-            record.tampered_with_tests = True
-            record.solved = False
-            record.error = f"modified test files: {', '.join(tampered[:3])}"
         record.input_tokens = chat.usage.input_tokens
         record.output_tokens = chat.usage.output_tokens
         record.cost_usd = price_of(model, chat.usage)
@@ -423,8 +465,7 @@ def attempt(repo: Path, task: dict, model: str, cfg: argparse.Namespace, run_ind
     except Exception as exc:  # a crashed attempt is a failed attempt, not a crashed run
         record.error = f"{type(exc).__name__}: {exc}"[:200]
     finally:
-        ws.close()
-        record.seconds = round(time.monotonic() - started, 1)
+        finish(record, ws, started, patch_dir(cfg), solved_already=solved)
     return record
 
 

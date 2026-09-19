@@ -41,6 +41,11 @@ def summarise(records: list[dict]) -> list[dict]:
     return sorted(rows, key=lambda r: (-r["pass_rate"], r["cost"] or 0))
 
 
+def short(model: str) -> str:
+    """Drop the provider prefix; `anthropic:claude-opus-5` -> `claude-opus-5`."""
+    return model.split(":", 1)[-1] if ":" in model else model
+
+
 def money(value: float | None) -> str:
     return "-" if value is None else f"${value:,.2f}"
 
@@ -111,6 +116,57 @@ def write_site(rows: list[dict], records: list[dict], repo: str, out: Path, temp
     out.write_text(html)
 
 
+def mechanics(records: list[dict]) -> None:
+    """How each model worked, independent of whether it succeeded.
+
+    A pass rate over 100 tasks is 100 observations. The same runs produce
+    thousands of tool calls, so these columns can separate models that all
+    scored zero -- and can detect effects far too small to move a solve rate.
+    """
+    per_model: dict[str, dict[str, float]] = defaultdict(
+        lambda: {"attempts": 0, "calls": 0, "errors": 0, "unknown": 0,
+                 "text": 0, "edited": 0, "first_edit": 0.0, "first_edit_n": 0}
+    )
+    for r in records:
+        stats = r.get("tools") or {}
+        if not stats:
+            continue
+        row = per_model[r["model"]]
+        row["attempts"] += 1
+        row["calls"] += stats.get("calls", 0)
+        row["errors"] += stats.get("errors", 0)
+        row["unknown"] += stats.get("unknown_tool", 0)
+        row["text"] += stats.get("recovered_from_text", 0)
+        if stats.get("first_edit_turn") is not None:
+            row["edited"] += 1
+            row["first_edit"] += stats["first_edit_turn"]
+            row["first_edit_n"] += 1
+
+    rows = {m: v for m, v in per_model.items() if v["calls"]}
+    if not rows:
+        return
+
+    width = max(len(short(m)) for m in rows) + 2
+    print(f"\n{BOLD}HOW THEY WORKED{RESET}")
+    header = (f"{'MODEL':<{width}}{'CALLS':>7}{'/TASK':>7}{'ERROR%':>8}"
+              f"{'UNKNOWN':>9}{'AS TEXT':>9}{'EDITED':>8}{'1ST EDIT':>10}")
+    print(BOLD + header + RESET)
+    print(DIM + "-" * len(header) + RESET)
+    for model, v in sorted(rows.items(), key=lambda kv: -kv[1]["calls"]):
+        calls = v["calls"]
+        first = v["first_edit"] / v["first_edit_n"] if v["first_edit_n"] else None
+        edited = f"{int(v['edited'])}/{int(v['attempts'])}"
+        when = f"turn {first:.1f}" if first else "-"
+        print(
+            f"{short(model):<{width}}{int(calls):>7}{calls / v['attempts']:>7.1f}"
+            f"{v['errors'] / calls:>7.0%} {v['unknown'] / calls:>8.0%}"
+            f"{v['text'] / calls:>9.0%}{edited:>8}{when:>10}"
+        )
+    print(f"\n  {DIM}AS TEXT: tool calls that arrived as prose and had to be "
+          f"recovered — a model\n  property, and a confound if it differs across "
+          f"a comparison.{RESET}")
+
+
 def by_trait(records: list[dict], tasks: dict[str, dict]) -> None:
     """Where an agent is reliable, and where it is not."""
     traits = [("shape", "SCOPE"), ("size", "SIZE"), ("concurrency", "CONCURRENCY")]
@@ -175,6 +231,7 @@ def main() -> int:
                 task = json.loads(line)
                 tasks[task["sha"][:12]] = task
         by_trait(records, tasks)
+    mechanics(records)
 
     if cfg.site:
         write_site(rows, records, cfg.repo or "unknown repo", cfg.site, cfg.template)
