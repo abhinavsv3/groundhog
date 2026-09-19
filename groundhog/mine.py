@@ -35,6 +35,9 @@ NOISE_PATTERNS = [
     re.compile(r"(^|/)(docs?|examples?|vendor|node_modules)/"),
 ]
 
+# git writes revert subjects verbatim, so the target is recoverable.
+REVERT = re.compile(r'^Revert\s+"(?P<subject>.+)"\s*$')
+
 SOURCE_EXTENSIONS = {".py", ".go", ".rs", ".ts", ".tsx", ".js", ".jsx", ".java", ".rb", ".c", ".cc", ".cpp", ".h"}
 
 
@@ -60,6 +63,7 @@ class Candidate:
     source_files: list[str]
     source_lines_changed: int
     test_lines_added: int
+    reverts: str = ""
 
     @property
     def task_id(self) -> str:
@@ -151,8 +155,11 @@ def evaluate(repo: Path, sha: str, date: str, subject: str, cfg: argparse.Namesp
     if len(source_files) > cfg.max_source_files:
         return None, f"touches too many files ({len(source_files)})"
 
+    revert_match = REVERT.match(subject.strip())
+
     return (
         Candidate(
+            reverts=revert_match.group("subject") if revert_match else "",
             sha=sha,
             parent=parent,
             date=date,

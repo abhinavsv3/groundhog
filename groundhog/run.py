@@ -227,6 +227,28 @@ class Workspace:
         return f"error: unknown tool {name}"
 
 
+def already_done(path: Path) -> set[tuple[str, str, int]]:
+    """(task_id, model, run_index) triples already recorded in an output file.
+
+    Records are written and flushed as each attempt completes, so an
+    interrupted run leaves everything finished up to that point. What was
+    missing was any way to pick it back up -- which matters when a run is
+    hours of paid API calls and a rate limit means starting over.
+    """
+    if not path.exists():
+        return set()
+    done: set[tuple[str, str, int]] = set()
+    for line in path.read_text().splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+            done.add((row["task_id"], row["model"], int(row.get("run_index", 0))))
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            continue  # a truncated final line is expected after a hard kill
+    return done
+
+
 def patch_dir(cfg: argparse.Namespace) -> Path | None:
     if getattr(cfg, "no_patches", False):
         return None
@@ -410,6 +432,8 @@ def main() -> int:
     ))
     ap.add_argument("--agent-timeout", type=int, default=900, help="seconds an external agent may run")
     ap.add_argument("--no-patches", action="store_true", help="do not save each attempt's diff")
+    ap.add_argument("--resume", action="store_true",
+                    help="append to --out, skipping attempts already recorded there")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--repeats", type=int, default=1,
                     help="attempts per task; >1 is required for any claim about a small effect")
@@ -434,15 +458,29 @@ def main() -> int:
         return 1
 
     total = len(models) * len(tasks) * cfg.repeats
-    print(f"{len(models)} models x {len(tasks)} tasks x {cfg.repeats} repeats = {total} attempts\n", file=sys.stderr)
+    done = already_done(cfg.out) if cfg.resume else set()
+    print(f"{len(models)} models x {len(tasks)} tasks x {cfg.repeats} repeats = {total} attempts",
+          file=sys.stderr)
+    if cfg.resume:
+        planned = {
+            (t["sha"][:12], m, r)
+            for t in tasks for m in models for r in range(cfg.repeats)
+        }
+        skipping = len(planned & done)
+        print(f"resuming: {skipping} already recorded, {total - skipping} to run",
+              file=sys.stderr)
+    print(file=sys.stderr)
+
     cfg.out.parent.mkdir(parents=True, exist_ok=True)
     records: list[Attempt] = []
 
-    with cfg.out.open("w") as fh:
+    with cfg.out.open("a" if cfg.resume else "w") as fh:
         for model in models:
             solved = attempted = 0
             for run_index in range(cfg.repeats):
                 for i, task in enumerate(tasks, 1):
+                    if (task["sha"][:12], model, run_index) in done:
+                        continue
                     tag = f" r{run_index + 1}" if cfg.repeats > 1 else ""
                     label = f"{model:<32}{tag} [{i}/{len(tasks)}] {task['subject'][:34]}"
                     print(f"{label:<88}", end="", flush=True, file=sys.stderr)

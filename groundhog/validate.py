@@ -107,6 +107,79 @@ def source_roots(tree: Path) -> list[Path]:
     return roots
 
 
+def deduplicate(tasks: list[dict]) -> tuple[list[dict], list[tuple[dict, dict]]]:
+    """Collapse tasks that test the same change.
+
+    A repo with a revert cycle -- deprecate, revert, re-apply -- yields three
+    commits that are one change. An agent solving one solves all three, so
+    counting them separately triples that change's weight in the pass rate and,
+    worse, breaks the independence assumption behind every confidence interval
+    and p-value Groundhog prints.
+
+    Three signals, merged transitively:
+
+    1. Identical FAIL_TO_PASS sets -- the same tests flip, so it is the same task.
+    2. Identical subject AND overlapping source files. Subject alone would merge
+       every commit called "fix tests"; requiring shared source files makes it
+       safe.
+    3. A revert naming its target's subject. git records this verbatim.
+
+    Signal 1 alone is not enough: in pallets/click's isolated_filesystem cycle
+    the same test moved between files, so the two halves had disjoint F2P sets
+    despite being one change. Signal 3 links them through the revert.
+
+    The newest task in each group survives, since it reflects the code as it
+    stands.
+    """
+    parent: dict[int, int] = {i: i for i in range(len(tasks))}
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(a: int, b: int) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[max(ra, rb)] = min(ra, rb)
+
+    by_targets: dict[frozenset, int] = {}
+    by_subject: dict[str, list[int]] = {}
+    for i, task in enumerate(tasks):
+        targets = frozenset(task.get("fail_to_pass") or [])
+        if targets:
+            if targets in by_targets:
+                union(i, by_targets[targets])
+            else:
+                by_targets[targets] = i
+        by_subject.setdefault(task["subject"].strip(), []).append(i)
+
+    for indexes in by_subject.values():
+        for a, b in zip(indexes, indexes[1:]):
+            if set(tasks[a].get("source_files", [])) & set(tasks[b].get("source_files", [])):
+                union(a, b)
+
+    for i, task in enumerate(tasks):
+        target_subject = (task.get("reverts") or "").strip()
+        for j in by_subject.get(target_subject, []):
+            union(i, j)
+
+    groups: dict[int, list[dict]] = {}
+    for i, task in enumerate(tasks):
+        groups.setdefault(find(i), []).append(task)
+
+    kept: list[dict] = []
+    dropped: list[tuple[dict, dict]] = []
+    for group in groups.values():
+        group.sort(key=lambda t: t.get("date", ""), reverse=True)
+        kept.append(group[0])
+        dropped.extend((duplicate, group[0]) for duplicate in group[1:])
+
+    kept.sort(key=lambda t: t.get("date", ""), reverse=True)
+    return kept, dropped
+
+
 def tail(text: str, lines: int = 12) -> str:
     return "\n".join(text.strip().splitlines()[-lines:])
 
@@ -208,6 +281,8 @@ def main() -> int:
     ap.add_argument("--p2p-scope", choices=("file", "full"), default="file",
                     help="which tests must stay green: the task's own files, or the whole suite")
     ap.add_argument("--limit", type=int, default=0, help="stop after N candidates")
+    ap.add_argument("--keep-duplicates", action="store_true",
+                    help="keep tasks defined by the same tests flipping")
     cfg = ap.parse_args()
 
     if cfg.venv is None and not cfg.no_auto_env:
@@ -240,10 +315,23 @@ def main() -> int:
         else:
             print(f"  {verdict['status'].upper()}  {verdict.get('reason', '')[:44]}", file=sys.stderr)
 
+    duplicates: list[tuple[dict, dict]] = []
+    if not cfg.keep_duplicates:
+        valid, duplicates = deduplicate(valid)
+
     cfg.out.parent.mkdir(parents=True, exist_ok=True)
     with cfg.out.open("w") as fh:
         for task in valid:
             fh.write(json.dumps(task) + "\n")
+
+    if duplicates:
+        print(f"\ndropped {len(duplicates)} duplicate task(s) -- same tests flip, "
+              f"so they are not independent observations:", file=sys.stderr)
+        for duplicate, survivor in duplicates[:6]:
+            print(f"  {duplicate['sha'][:12]}  {duplicate['subject'][:52]}", file=sys.stderr)
+            print(f"      -> same change as {survivor['sha'][:12]} "
+                  f"{survivor['subject'][:40]}", file=sys.stderr)
+        print("  (--keep-duplicates to retain them)", file=sys.stderr)
 
     elapsed = time.monotonic() - started
     print(f"\n{len(valid)}/{len(tasks)} became real tasks in {elapsed:.0f}s -> {cfg.out}", file=sys.stderr)

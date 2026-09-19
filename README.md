@@ -100,7 +100,12 @@ environment, and worked out how to run the tests.
 | python-attrs/attrs | class generation | 33 | 8 / 15 tried |
 | tiangolo/typer | CLI framework | 7 | 6 / 7 tried |
 
-45 verified tasks. Of the 22 rejections, 13 were commits whose tests passed
+45 verified tasks, after collapsing commits that test the same change — a
+revert cycle in click produced three commits for one change, which would
+otherwise have tripled its weight in the pass rate and broken the independence
+assumption behind every interval reported here.
+
+Of the 22 rejections, 13 were commits whose tests passed
 without the fix — refactors and formatting, exactly what the fail-to-pass check
 is for. The other 9 were **our** failures, not the repos': environments
 Groundhog could not build well enough to run the tests. That ratio is a fair
@@ -187,6 +192,8 @@ Early, but working end to end.
 - [x] External agent adapters — benchmark *your* agent, not ours
 - [x] FAIL_TO_PASS / PASS_TO_PASS scoring and test-tamper detection
 - [x] Repeats, Wilson intervals and paired significance testing
+- [x] Task deduplication, so related commits are not counted as independent
+- [x] `--resume` for interrupted runs, and each attempt's diff saved
 - [x] Regression tracking (`groundhog compare`) and a CI workflow
 
 ## Contributing
