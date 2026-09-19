@@ -1,0 +1,93 @@
+
+1. A repository with real history
+   Four bug fixes, one pure refactor, two modules.
+   5299210 Tidy clamp internals
+   2938a8f Add safe_divide()
+   9b77e47 Add truncate()
+   97d5ad2 Add dedupe()
+   37a20c7 Add clamp()
+   ce1ef04 Add numbers module
+   b7c6596 initial
+
+2. Mine tasks from that history
+   Commits that changed source and tests together.
+$ python -m groundhog mine $DEMO/demolib --since 10 years ago --out $DEMO/out/candidates.jsonl
+scanning 7 commits from /var/folders/wx/n_3rgs8n2yb4kjzcycsg81nr0000gn/T/groundhog-demo-myfj3u2k/demolib
+
+6 candidates -> /var/folders/wx/n_3rgs8n2yb4kjzcycsg81nr0000gn/T/groundhog-demo-myfj3u2k/out/candidates.jsonl
+rejected:
+     1  root commit
+  52992100697d     3L  Tidy clamp internals
+  2938a8f87da8     7L  Add safe_divide()
+  9b77e47f75b2     7L  Add truncate()
+  97d5ad2082e1    10L  Add dedupe()
+  37a20c77fb2c     5L  Add clamp()
+  ce1ef0401728    18L  Add numbers module
+
+3. Validate them
+   Tests must fail without the fix and pass with it. No venv or
+   test command supplied -- it reads pyproject.toml itself.
+$ python -m groundhog validate $DEMO/demolib --candidates $DEMO/out/candidates.jsonl --out $DEMO/out/tasks.jsonl --p2p-scope full
+   validating 6 candidates
+   
+   [1/6] 52992100697d Tidy clamp internals                                 REJECTED  tests already pass without the fix
+   [2/6] 2938a8f87da8 Add safe_divide()                                    VALID   F2P=1   P2P=5    (0.2s -> 0.2s)
+   [3/6] 9b77e47f75b2 Add truncate()                                       VALID   F2P=1   P2P=4    (0.2s -> 0.2s)
+   [4/6] 97d5ad2082e1 Add dedupe()                                         VALID   F2P=1   P2P=3    (0.2s -> 0.2s)
+   [5/6] 37a20c77fb2c Add clamp()                                          VALID   F2P=1   P2P=2    (0.2s -> 0.2s)
+   [6/6] ce1ef0401728 Add numbers module                                   REJECTED  tests already pass without the fix
+   
+   4/6 became real tasks in 3s -> /var/folders/wx/n_3rgs8n2yb4kjzcycsg81nr0000gn/T/groundhog-demo-myfj3u2k/out/tasks.jsonl
+
+   Note the refactor was rejected: its tests passed without the fix.
+
+4. Run four agents against 3 task(s)
+   Only the honest one should score.
+
+   honest — applies the real fix
+     Add safe_divide()                   solved
+     Add truncate()                      solved
+     Add dedupe()                        solved
+
+   saboteur — fixes it, and breaks another module
+     Add safe_divide()                   not solved (broke 1 passing test(s))
+     Add truncate()                      not solved (broke 1 passing test(s))
+     Add dedupe()                        not solved (broke 1 passing test(s))
+
+   test-editor — fixes it, and edits the test
+     Add safe_divide()                   not solved (edited a test file)
+     Add truncate()                      not solved (edited a test file)
+     Add dedupe()                        not solved (edited a test file)
+
+   idle — does nothing at all
+     Add safe_divide()                   not solved
+     Add truncate()                      not solved
+     Add dedupe()                        not solved
+
+5. The report
+
+MODEL          SOLVED   RATE         95% CI      COST   PER SOLVE   MEDIAN
+--------------------------------------------------------------------------
+honest            3/3   100%     44% – 100%         -           -       0s
+saboteur          0/3     0%       0% – 56%         -           -       0s
+test-editor       0/3     0%       0% – 56%         -           -       0s
+idle              0/3     0%       0% – 56%         -           -       0s
+
+  The top two intervals overlap — this ordering is not a result. Separating them
+  would need roughly 3 tasks (you have 3), or use `groundhog compare`
+  for a paired test, which needs far fewer.
+
+PER TASK
+                                                 honest     saboteur  test-editor         idle
+Add safe_divide()                                  pass         fail         fail         fail
+Add dedupe()                                       pass         fail         fail         fail
+Add truncate()                                     pass         fail         fail         fail
+
+
+What this showed
+  - tasks mined from ordinary git history, with no hand-labelling
+  - a pure refactor rejected, because its tests passed without the fix
+  - an agent that fixed the bug and broke another module: not solved
+  - an agent that edited the test to pass: not solved
+
+  A FAIL_TO_PASS-only harness would have scored the middle two as fixes.

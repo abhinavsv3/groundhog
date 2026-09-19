@@ -11,6 +11,20 @@ team doing its job.
 Groundhog mines them, verifies them, and races coding agents against them — on
 *your* codebase, in *your* language, with *your* conventions.
 
+**See it work first** — no API key, no network, about ten seconds:
+
+```bash
+git clone https://github.com/abhinavsv3/groundhog
+cd groundhog && pip install -e .
+python -m groundhog demo
+```
+
+That builds a repository with real git history, mines tasks from it, validates
+them, and runs four scripted agents. One applies the real fix. One applies the
+real fix *and* breaks another module. One applies the real fix *and* edits the
+test. One does nothing. Only the first scores — the captured output is in
+[examples/demo-output.txt](examples/demo-output.txt).
+
 Mining and validation, real output:
 
 ```
@@ -205,6 +219,7 @@ together and where to start.
 
 - [Good first issues](../../issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 - [Help wanted](../../issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
+- [Worked examples and captured output](examples/)
 - [What people use this for](docs/use-cases.md)
 - [Using Groundhog for research](docs/research.md)
 - [Running it continuously](docs/ci.md)
@@ -242,6 +257,18 @@ If you use the repo-transfer analysis in
 is from the [SWE-bench experiments
 repository](https://github.com/SWE-bench/experiments) and should be cited
 alongside it.
+
+## Experiments
+
+Written up, reproducible, and including the results that did not flatter the
+project:
+
+| | |
+|---|---|
+| [PASS_TO_PASS experiment](analysis/experiment-pass-to-pass.md) | A 7B model made its target test pass while destroying the library — three times in twelve, unprompted. $0. |
+| [Local models](analysis/local-models.md) | What 7–14B models do on real bugs: they engage, and get it wrong. Every attempt claimed completion without running the tests. |
+| [Harness artifacts](analysis/harness-artifacts.md) | Detecting broken environments in 122 published SWE-bench submissions, via tail asymmetry. Offered upstream as [experiments#488](https://github.com/SWE-bench/experiments/issues/488). |
+| [Repo transfer](analysis/divergence.py) | Ranking transfers between repositories (ρ = 0.86); absolute capability does not (36-point median swing). This falsified the project's original premise. |
 
 ## Prior art, and where this sits
 
