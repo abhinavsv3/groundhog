@@ -19,4 +19,18 @@ openai:qwen2.5-coder:7b          [12/12] Add clamp()                            
 1 models x 12 tasks x 1 repeats = 12 attempts
 resuming: 0 already recorded, 12 to run
 
-openai:qwen2.5-coder:7b          [1/12] Add title_case()                                
+openai:qwen2.5-coder:7b          [1/12] Add title_case()                                  fail    32.2s  
+openai:qwen2.5-coder:7b          [2/12] Add human_bytes()                                 fail    17.8s  
+openai:qwen2.5-coder:7b          [3/12] Add count_words()                                 fail    12.3s  
+openai:qwen2.5-coder:7b          [4/12] Add safe_divide()                                 fail    12.3s  
+openai:qwen2.5-coder:7b          [5/12] Add slugify()                                     fail    34.8s  
+openai:qwen2.5-coder:7b          [6/12] Add flatten()                                     fail    13.3s  
+openai:qwen2.5-coder:7b          [7/12] Add strip_prefix()                                fail     7.3s  
+openai:qwen2.5-coder:7b          [8/12] Add parse_bool()                                  fail     5.4s  
+openai:qwen2.5-coder:7b          [9/12] Add truncate()                                    fail    43.3s  
+openai:qwen2.5-coder:7b          [10/12] Add dedupe()                                     fail    10.9s  
+openai:qwen2.5-coder:7b          [11/12] Add chunk()                                      fail     5.2s  
+openai:qwen2.5-coder:7b          [12/12] Add clamp()                                      fail     3.9s  
+                                 -> 0/12
+
+12 attempts -> results/cripple-14.jsonl

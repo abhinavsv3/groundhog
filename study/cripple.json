@@ -1,0 +1,9 @@
+{
+  "baseline_rate": 0.0833,
+  "current_rate": 0.0,
+  "delta": -0.0833,
+  "shared_tasks": 12,
+  "p_value": 1.0,
+  "significant": false,
+  "verdict": "no detectable difference (p = 1.000)"
+}
