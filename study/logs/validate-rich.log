@@ -1,0 +1,9 @@
+validating 25 candidates
+
+[1/25] 7ef2d05ca8aa fix inline code in table cells                      REJECTED  tests still fail with the real fix (environm
+[2/25] 0e952c3cb760 proxy isatty                                        VALID   F2P=1   P2P=3    (0.3s -> 0.2s)
+[3/25] 69cee6e1be30 preserve newlines                                   REJECTED  tests still fail with the real fix (environm
+[4/25] b736b97ab7a5 empty with end                                      VALID   F2P=1   P2P=99   (0.8s -> 0.7s)
+[5/25] 63d3200199f6 perf: eliminate inspect imports from protocol.py    REJECTED  tests still fail with the real fix (environm
+[6/25] b17c6169a418 perf: reduce Console and RichHandler import time    VALID   F2P=1   P2P=98   (0.8s -> 0.6s)
+[7/25] 87e7ca27d0f8 refinements, and tests                            

@@ -167,6 +167,61 @@ def installer() -> list[str]:
     return ["pip", "install"]
 
 
+# Lockfile -> package manager. Order matters: a repo may carry more than one,
+# and the most specific lockfile wins.
+JS_LOCKFILES = [
+    ("pnpm-lock.yaml", "pnpm", "pnpm install --frozen-lockfile"),
+    ("yarn.lock", "yarn", "yarn install --frozen-lockfile"),
+    ("bun.lockb", "bun", "bun install --frozen-lockfile"),
+    ("package-lock.json", "npm", "npm ci"),
+]
+
+
+def detect_js(repo: Path) -> Plan | None:
+    """JavaScript and TypeScript, via whichever runner the project declares.
+
+    vitest and jest both emit the same JSON result shape, so one parser covers
+    the large majority of modern repos. mocha and node:test do not, and are
+    left to --test-cmd rather than guessed at.
+    """
+    manifest = repo / "package.json"
+    if not manifest.is_file():
+        return None
+    try:
+        package = json.loads(manifest.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+
+    deps = {**package.get("devDependencies", {}), **package.get("dependencies", {})}
+    notes: list[str] = []
+
+    install, manager = "npm install", "npm"
+    for lockfile, name, command in JS_LOCKFILES:
+        if (repo / lockfile).is_file():
+            install, manager = command, name
+            notes.append(f"{name} ({lockfile})")
+            break
+    else:
+        notes.append("no lockfile; falling back to npm install")
+
+    if "vitest" in deps:
+        runner = "npx vitest run --reporter=json --passWithNoTests {tests}"
+        notes.append("vitest")
+    elif "jest" in deps:
+        runner = "npx jest --json --passWithNoTests {tests}"
+        notes.append("jest")
+    else:
+        return None  # mocha, node:test, ava -- let the user pass --test-cmd
+
+    return Plan(
+        language="javascript",
+        install=[install],
+        test_cmd=runner,
+        evidence=["package.json"],
+        notes=notes,
+    )
+
+
 def detect_go(repo: Path) -> Plan | None:
     """Go is the easy language: uniform tooling and no shadowing problem.
 
@@ -188,9 +243,10 @@ def detect_go(repo: Path) -> Plan | None:
 
 def detect(repo: Path) -> Plan:
     """Figure out how to install this repo and run its tests."""
-    go_plan = detect_go(repo)
-    if go_plan is not None:
-        return go_plan
+    for probe in (detect_go, detect_js):
+        plan = probe(repo)
+        if plan is not None:
+            return plan
 
     looked_for: list[str] = []
     pyproject_text = _read(repo / "pyproject.toml")
@@ -263,6 +319,15 @@ def ensure(repo: Path, plan: Plan | None = None, rebuild: bool = False, quiet: b
     reused across runs -- and rebuilt automatically when its deps change.
     """
     plan = plan or detect(repo)
+    if plan.language == "javascript":
+        # Install once in the source clone; worktrees borrow node_modules by
+        # symlink in run/validate, which is far cheaper than installing per
+        # task. See link_node_modules() for the shadowing hazard that creates.
+        for command in plan.install:
+            subprocess.run(command, shell=True, cwd=str(repo),
+                           capture_output=True, text=True)
+        return None
+
     if plan.language == "go":
         # Go has no per-project interpreter to build; the module cache is global
         # and `go mod download` is idempotent.

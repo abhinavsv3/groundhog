@@ -7,4 +7,31 @@ validating 25 candidates
 [5/25] a6256bfb5971 Forwards all user's parameters set in `PAGER`       VALID   F2P=3   P2P=187  (1.2s -> 0.9s)
 [6/25] bc32a92cd2ae Refactor pager stream handling; drop text/binary    VALID   F2P=4   P2P=203  (1.1s -> 0.9s)
 [7/25] 1f9cd54f686e Close the pager temp file before unlinking it       VALID   F2P=1   P2P=184  (0.5s -> 0.5s)
-[8/25] f316d5cb3aa8 Land the progress bar on its final position       
+[8/25] f316d5cb3aa8 Land the progress bar on its final position         VALID   F2P=6   P2P=178  (0.6s -> 0.5s)
+[9/25] 047adef258fc Preserve declaration order of help option names     VALID   F2P=3   P2P=85   (0.3s -> 0.2s)
+[10/25] 3b16957cba71 Make `prompt`/`ParamType` typing work without ru   REJECTED  tests still fail with the real fix (environm
+[11/25] 0585f456baa6 `click.prompt` typing clarifications / improveme   REJECTED  tests already pass without the fix
+[12/25] c2ed41490baa Deprecate `isolated_filesystem` and document its   VALID   F2P=1   P2P=293  (0.7s -> 0.5s)
+[13/25] 8ee83ddbf5a7 Revert "Deprecate `isolated_filesystem` and docu   VALID   F2P=16  P2P=266  (0.7s -> 0.5s)
+[14/25] fbdd434028fe Deprecate `isolated_filesystem` and document its   VALID   F2P=1   P2P=284  (0.8s -> 0.5s)
+[15/25] 051725fa7e0c Add tests to deprecations. Better deprecate stre   VALID   F2P=49  P2P=0    (0.3s -> 0.2s)
+[16/25] 71f2bafa541e Strip all ANSI sequences                           VALID   F2P=21  P2P=210  (0.4s -> 0.4s)
+[17/25] 3495fba163dd Warn when an argument name collide with other pa   VALID   F2P=9   P2P=658  (0.9s -> 0.7s)
+[18/25] 07c909f23f0f Validate style() color arguments, fix explicit b   VALID   F2P=36  P2P=0    (0.3s -> 0.2s)
+[19/25] 9f9b149ea302 Add `@custom_version_option`, freeze `@version_o   VALID   F2P=3   P2P=87   (0.3s -> 0.2s)
+[20/25] 93ba0075f488 Strip ANSI from `confirm()` and `prompt()` when    VALID   F2P=2   P2P=168  (0.5s -> 0.4s)
+[21/25] 6f85d26dcd50 Do not trigger a `BytesWarning` under `python -b   VALID   F2P=1   P2P=37   (0.3s -> 0.2s)
+[22/25] 27b3ee2633f8 Add built-in PowerShell shell completion support   VALID   F2P=58  P2P=0    (0.3s -> 0.2s)
+[23/25] bec59289d8cf Fix `package_name` resolution when top-level mod   REJECTED  tests still fail with the real fix (environm
+[24/25] 762c97eef7c1 Fix double-bracketing of choices in synopsis       REJECTED  tests still fail with the real fix (environm
+[25/25] 051bb0f30b54 Do not let the GC close a borrowed `stdout`        VALID   F2P=2   P2P=164  (0.5s -> 0.4s)
+
+dropped 2 duplicate task(s) -- same tests flip, so they are not independent observations:
+  8ee83ddbf5a7  Revert "Deprecate `isolated_filesystem` and document
+      -> same change as c2ed41490baa Deprecate `isolated_filesystem` and docu
+  fbdd434028fe  Deprecate `isolated_filesystem` and document its lim
+      -> same change as c2ed41490baa Deprecate `isolated_filesystem` and docu
+  (--keep-duplicates to retain them)
+
+17/25 became real tasks in 26s -> tasks/click-validated.jsonl
+task set b4ce930d6e772144  (2026-06-03 .. 2026-08-31)

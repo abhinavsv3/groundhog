@@ -103,6 +103,70 @@ def git(repo: Path, *args: str, check: bool = True) -> str:
 TEST_LINE = re.compile(r"^(\S+::\S+?)\s+(PASSED|FAILED|ERROR|XFAIL|XPASS|SKIPPED)", re.M)
 
 
+def js_outcomes(output: str) -> dict[str, str]:
+    """Parse vitest/jest JSON output. Both use the same result shape."""
+    start = output.find("{")
+    while start != -1:
+        try:
+            report = json.loads(output[start:])
+            break
+        except json.JSONDecodeError:
+            start = output.find("{", start + 1)
+    else:
+        return {}
+    if start == -1 or not isinstance(report, dict):
+        return {}
+
+    results: dict[str, str] = {}
+    for suite in report.get("testResults", []):
+        path = suite.get("name") or suite.get("testFilePath") or "?"
+        rel = Path(path).name
+        for case in suite.get("assertionResults", []):
+            name = case.get("fullName") or case.get("title")
+            status = (case.get("status") or "").lower()
+            if not name:
+                continue
+            results[f"{rel}::{name}"] = {
+                "passed": "PASSED", "failed": "FAILED",
+                "pending": "SKIPPED", "skipped": "SKIPPED",
+            }.get(status, status.upper())
+    return results
+
+
+def link_node_modules(source: Path, tree: Path) -> None:
+    """Borrow the clone's node_modules, minus any self-reference.
+
+    Installing per worktree would dominate the cost of a run, so the worktree
+    symlinks the clone's node_modules. That reintroduces Python's
+    editable-install hazard in Node form: a package that imports itself by name
+    (`import {x} from "mylib"`) resolves through node_modules/mylib, which
+    points back at the ORIGINAL clone -- so the agent's edits are invisible and
+    every test passes regardless. Dropping the self-link forces those imports
+    to fail loudly instead of silently succeeding against the wrong code.
+    """
+    modules = source / "node_modules"
+    link = tree / "node_modules"
+    if not modules.is_dir() or link.exists():
+        return
+    link.symlink_to(modules, target_is_directory=True)
+
+    try:
+        name = json.loads((tree / "package.json").read_text()).get("name")
+    except (json.JSONDecodeError, OSError):
+        return
+    if not name:
+        return
+    self_ref = modules / name
+    if self_ref.exists():
+        shadow = tree / ".groundhog-no-self-link"
+        shadow.mkdir(exist_ok=True)
+        for entry in modules.iterdir():
+            if entry.name != name.split("/")[0]:
+                (shadow / entry.name).symlink_to(entry, target_is_directory=entry.is_dir())
+        link.unlink()
+        shadow.rename(link)
+
+
 def go_outcomes(output: str) -> dict[str, str]:
     """Parse `go test -json` events into per-test outcomes.
 
@@ -142,7 +206,8 @@ def test_outcomes(output: str) -> dict[str, str]:
 
 
 def passing(output: str, language: str = "python") -> set[str]:
-    outcomes = go_outcomes(output) if language == "go" else test_outcomes(output)
+    parser = {"go": go_outcomes, "javascript": js_outcomes}.get(language, test_outcomes)
+    outcomes = parser(output)
     return {n for n, st in outcomes.items() if st in ("PASSED", "XFAIL")}
 
 
@@ -153,8 +218,8 @@ def verbose_form(cmd: str, language: str) -> str:
     the rest). `go test -json` is already per-test, and rewriting pytest flags
     into it would produce nonsense.
     """
-    if language == "go":
-        return cmd
+    if language in ("go", "javascript"):
+        return cmd  # already per-test via -json / --reporter=json
     return cmd.replace(" -x ", " ").replace(" -q", "") + " -v --tb=no"
 
 
@@ -285,10 +350,13 @@ def validate_one(
     try:
         git(repo, "worktree", "add", "--detach", "--quiet", str(tree), parent)
 
+        language = getattr(cfg, "language", "python")
+
         # Bring in the commit's tests, but none of its source.
         git(tree, "checkout", sha, "--", *task["test_files"])
+        if language == "javascript":
+            link_node_modules(repo, tree)
 
-        language = getattr(cfg, "language", "python")
         test_cmd = cfg.test_cmd.format(tests=test_targets(language, task["test_files"]))
         # PASS_TO_PASS scope. "file" watches only the task's own test files,
         # which is cheap and one file wide -- an agent that breaks a different

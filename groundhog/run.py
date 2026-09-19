@@ -23,7 +23,8 @@ from pathlib import Path
 from .agents import build_prompt, run_external
 from .environment import DetectionFailed, detect, ensure
 from .models import ProviderError, Usage, connect, price_of
-from .validate import git, passing, run, source_roots, tail, verbose_form, wrap
+from .validate import (git, link_node_modules, passing, run, source_roots,
+                       tail, verbose_form, wrap)
 
 SYSTEM = """You are fixing a bug in a real codebase.
 
@@ -156,6 +157,8 @@ class Workspace:
         git(repo, "worktree", "add", "--detach", "--quiet", str(self.tree), task["parent"])
         git(self.tree, "checkout", task["sha"], "--", *task["test_files"])
         self.env = {"PYTHONPATH": ":".join(str(r) for r in source_roots(self.tree))}
+        if task.get("language") == "javascript":
+            link_node_modules(repo, self.tree)
 
         # An external agent has a shell and can rewrite anything, so tool-level
         # restrictions are not enough. Fingerprint the tests now and check them
