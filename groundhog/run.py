@@ -23,7 +23,7 @@ from pathlib import Path
 from .agents import build_prompt, run_external
 from .environment import DetectionFailed, detect, ensure
 from .models import ProviderError, Usage, connect, price_of
-from .validate import git, passing, run, source_roots, tail, wrap
+from .validate import git, passing, run, source_roots, tail, verbose_form, wrap
 
 SYSTEM = """You are fixing a bug in a real codebase.
 
@@ -144,7 +144,10 @@ class Workspace:
         self.tmp = Path(tempfile.mkdtemp(prefix=f"groundhog-run-{task['sha'][:8]}-"))
         self.tree = self.tmp / "repo"
         self.test_files = set(task["test_files"])
-        self.test_cmd = test_cmd.format(tests=" ".join(task["test_files"]))
+        from .validate import test_targets
+        self.test_cmd = test_cmd.format(
+            tests=test_targets(task.get("language", "python"), task["test_files"])
+        )
         self.touched: list[str] = []
         self.stats = ToolStats()
         self.turn = 0
@@ -201,12 +204,12 @@ class Workspace:
         """
         # Grade against whatever scope the task was validated at. A pass rate
         # measured at "file" scope and one at "full" scope are not comparable.
+        language = self.task.get("language", "python")
         command = self.task.get("p2p_cmd") or self.test_cmd
-        verbose = wrap(command.replace(" -x ", " ").replace(" -q", "") + " -v --tb=no",
-                       self.task.get("env_cmd"))
+        verbose = wrap(verbose_form(command, language), self.task.get("env_cmd"))
         budget = self.timeout * (3 if self.task.get("p2p_scope") == "full" else 1)
         result = run(verbose, self.tree, budget, self.venv, self.env)
-        now = passing(result.output)
+        now = passing(result.output, language)
 
         f2p = self.task.get("fail_to_pass") or []
         p2p = self.task.get("pass_to_pass") or []

@@ -103,13 +103,59 @@ def git(repo: Path, *args: str, check: bool = True) -> str:
 TEST_LINE = re.compile(r"^(\S+::\S+?)\s+(PASSED|FAILED|ERROR|XFAIL|XPASS|SKIPPED)", re.M)
 
 
+def go_outcomes(output: str) -> dict[str, str]:
+    """Parse `go test -json` events into per-test outcomes.
+
+    Package-qualified, because `TestParse` may exist in several packages and
+    FAIL_TO_PASS sets must not collide.
+    """
+    results: dict[str, str] = {}
+    for line in output.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        name, action = event.get("Test"), event.get("Action")
+        if not name or action not in ("pass", "fail", "skip"):
+            continue
+        results[f"{event.get('Package', '?')}::{name}"] = action.upper() + (
+            "ED" if action == "pass" else ""
+        )
+    return {k: ("PASSED" if v.startswith("PASS") else v) for k, v in results.items()}
+
+
+def test_targets(language: str, test_files: list[str]) -> str:
+    """How to name the tests to run, for this language's test runner."""
+    if language == "go":
+        # Go runs packages, not files.
+        dirs = sorted({str(Path(f).parent) for f in test_files})
+        return " ".join(f"./{d}" if d != "." else "." for d in dirs)
+    return " ".join(test_files)
+
+
 def test_outcomes(output: str) -> dict[str, str]:
     """Parse per-test results out of a pytest run."""
     return {name: status for name, status in TEST_LINE.findall(output)}
 
 
-def passing(output: str) -> set[str]:
-    return {n for n, st in test_outcomes(output).items() if st in ("PASSED", "XFAIL")}
+def passing(output: str, language: str = "python") -> set[str]:
+    outcomes = go_outcomes(output) if language == "go" else test_outcomes(output)
+    return {n for n, st in outcomes.items() if st in ("PASSED", "XFAIL")}
+
+
+def verbose_form(cmd: str, language: str) -> str:
+    """The same test command, but reporting every individual test.
+
+    pytest needs -v and must lose -x (which stops at the first failure, hiding
+    the rest). `go test -json` is already per-test, and rewriting pytest flags
+    into it would produce nonsense.
+    """
+    if language == "go":
+        return cmd
+    return cmd.replace(" -x ", " ").replace(" -q", "") + " -v --tb=no"
 
 
 def source_roots(tree: Path) -> list[Path]:
@@ -242,15 +288,17 @@ def validate_one(
         # Bring in the commit's tests, but none of its source.
         git(tree, "checkout", sha, "--", *task["test_files"])
 
-        test_cmd = cfg.test_cmd.format(tests=" ".join(task["test_files"]))
+        language = getattr(cfg, "language", "python")
+        test_cmd = cfg.test_cmd.format(tests=test_targets(language, task["test_files"]))
         # PASS_TO_PASS scope. "file" watches only the task's own test files,
         # which is cheap and one file wide -- an agent that breaks a different
         # module goes unnoticed. "full" watches the whole suite.
-        scope = getattr(cfg, "p2p_scope", "file")
+        scope = getattr(cfg, "p2p_scope", None) or "file"
         env_cmd = getattr(cfg, "env_cmd", None)
-        p2p_cmd = cfg.test_cmd.format(tests="") if scope == "full" else test_cmd
+        p2p_cmd = cfg.test_cmd.format(tests="./..." if language == "go" else "") \
+            if scope == "full" else test_cmd
         # -v without -x: we need every test's outcome, not an early exit
-        verbose_cmd = wrap(test_cmd.replace(" -x ", " ").replace(" -q", "") + " -v --tb=no", env_cmd)
+        verbose_cmd = wrap(verbose_form(test_cmd, language), env_cmd)
         pypath = {"PYTHONPATH": ":".join(str(r) for r in source_roots(tree))}
 
         before = run(verbose_cmd, tree, cfg.timeout, env_path, pypath)
@@ -272,17 +320,15 @@ def validate_one(
         # FAIL_TO_PASS: the tests the fix is *for*.
         # PASS_TO_PASS: tests already green that must stay green, which is what
         # stops an agent from "solving" a task by breaking everything around it.
-        was, now = passing(before.output), passing(after.output)
+        was, now = passing(before.output, language), passing(after.output, language)
         fail_to_pass = sorted(now - was)
 
         if scope == "full":
             # Re-run the whole suite in the fixed state: everything green here
             # must stay green, wherever in the repo it lives.
-            wide = run(
-                p2p_cmd.replace(" -x ", " ").replace(" -q", "") + " -v --tb=no",
-                tree, cfg.timeout * 3, env_path, pypath,
-            )
-            pass_to_pass = sorted(passing(wide.output) - set(fail_to_pass))
+            wide = run(wrap(verbose_form(p2p_cmd, language), env_cmd),
+                       tree, cfg.timeout * 3, env_path, pypath)
+            pass_to_pass = sorted(passing(wide.output, language) - set(fail_to_pass))
         else:
             pass_to_pass = sorted(now & was)
 
@@ -296,6 +342,7 @@ def validate_one(
         verdict.update(
             status="valid",
             test_cmd=test_cmd,
+            language=language,
             env_cmd=env_cmd or "",
             p2p_scope=scope,
             p2p_cmd=p2p_cmd,
@@ -324,8 +371,9 @@ def main() -> int:
     ap.add_argument("--no-auto-env", action="store_true", help="do not build an environment automatically")
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--env-cmd", help='wrap every test command, e.g. "conda run -n myenv {cmd}"')
-    ap.add_argument("--p2p-scope", choices=("file", "full"), default="file",
-                    help="which tests must stay green: the task's own files, or the whole suite")
+    ap.add_argument("--p2p-scope", choices=("file", "full"), default=None,
+                    help="which tests must stay green: the task's own files, or the whole "
+                         "suite. Defaults to file for Python, full for Go.")
     ap.add_argument("--limit", type=int, default=0, help="stop after N candidates")
     ap.add_argument("--keep-duplicates", action="store_true",
                     help="keep tasks defined by the same tests flipping")
@@ -334,6 +382,16 @@ def main() -> int:
     if cfg.venv is None and not cfg.no_auto_env:
         try:
             plan = detect(cfg.repo)
+            cfg.language = plan.language
+            if cfg.p2p_scope is None:
+                # Go needs full scope, not as a preference but for correctness:
+                # a missing function fails compilation, so every test in the
+                # package lands in FAIL_TO_PASS and PASS_TO_PASS is empty --
+                # zero protection against an agent breaking something else.
+                cfg.p2p_scope = "full" if plan.language == "go" else "file"
+                if plan.language == "go":
+                    print("using --p2p-scope full: Go compilation failures leave "
+                          "nothing for file scope to protect", file=sys.stderr)
             if cfg.test_cmd == ap.get_default("test_cmd"):
                 cfg.test_cmd = plan.test_cmd
             cfg.venv = ensure(cfg.repo, plan)

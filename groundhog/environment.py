@@ -167,8 +167,31 @@ def installer() -> list[str]:
     return ["pip", "install"]
 
 
+def detect_go(repo: Path) -> Plan | None:
+    """Go is the easy language: uniform tooling and no shadowing problem.
+
+    `go build` always resolves packages from the directory tree it is run in,
+    so the editable-install trap that cost this project twenty click tasks
+    cannot occur. Dependencies come from go.mod; tests run per package.
+    """
+    if not (repo / "go.mod").is_file():
+        return None
+    return Plan(
+        language="go",
+        install=["go mod download"],
+        # -json gives unambiguous per-test results with package names, which
+        # bare -v output does not: two packages may each define TestParse.
+        test_cmd="go test -json -count=1 {tests}",
+        evidence=["go.mod"],
+    )
+
+
 def detect(repo: Path) -> Plan:
     """Figure out how to install this repo and run its tests."""
+    go_plan = detect_go(repo)
+    if go_plan is not None:
+        return go_plan
+
     looked_for: list[str] = []
     pyproject_text = _read(repo / "pyproject.toml")
     pyproject = _toml(pyproject_text)
@@ -178,10 +201,10 @@ def detect(repo: Path) -> Plan:
 
     if not has_python_manifest and not requirement_files:
         raise DetectionFailed(
-            f"No Python project detected in {repo}.\n"
-            f"Looked for: {', '.join(looked_for)}\n"
-            "Only Python is supported so far -- pass --venv and --test-cmd "
-            "explicitly, or see issues labelled 'language'."
+            f"No supported project detected in {repo}.\n"
+            f"Looked for: go.mod, {', '.join(looked_for)}\n"
+            "Python and Go are supported. For anything else, pass --test-cmd "
+            "and --env-cmd explicitly, or see issues labelled 'language'."
         )
 
     pip = installer()
@@ -240,6 +263,13 @@ def ensure(repo: Path, plan: Plan | None = None, rebuild: bool = False, quiet: b
     reused across runs -- and rebuilt automatically when its deps change.
     """
     plan = plan or detect(repo)
+    if plan.language == "go":
+        # Go has no per-project interpreter to build; the module cache is global
+        # and `go mod download` is idempotent.
+        subprocess.run("go mod download", shell=True, cwd=str(repo),
+                       capture_output=True, text=True)
+        return None
+
     target = cache_root() / f"{repo.name}-{plan.fingerprint(repo)}"
     marker = target / ".groundhog-ready"
 
