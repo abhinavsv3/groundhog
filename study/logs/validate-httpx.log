@@ -1,0 +1,20 @@
+validating 25 candidates
+
+[1/25] 364697efcafe Upgrade Python formatter ruff (#3651)               REJECTED  tests already pass without the fix
+[2/25] 47f4a96ffaaa Handle empty zstd responses (#3412)                 VALID   F2P=1   P2P=39   (0.5s -> 0.5s)
+[3/25] 7b19cd5f4b74 Move utility functions from _utils.py to _client    REJECTED  tests already pass without the fix
+[4/25] 41597adffa9d Move remaining utility functions from _utils.py     REJECTED  tests already pass without the fix
+[5/25] 12be5c44caa7 add socks5h proxy support (#3178)                   VALID   F2P=1   P2P=68   (1.6s -> 1.5s)
+[6/25] e9cabc8e1deb made dependencies on certifi and httpcore only l    VALID   F2P=2   P2P=40   (0.9s -> 0.8s)
+[7/25] 5dda2aa30692 Just use default `safe=...` characters for `urle    VALID   F2P=2   P2P=79   (0.6s -> 0.6s)
+[8/25] ba2e51215e4e Review urlescape percent-safe set, and use + beh    VALID   F2P=3   P2P=78   (0.7s -> 0.5s)
+[9/25] d293374b6603 Review URL percent escaping sets, from whatwg. (    VALID   F2P=1   P2P=80   (0.6s -> 0.5s)
+[10/25] 9fd6f0ca6616 Ensure JSON representation is compact. #3363 (#3   VALID   F2P=13  P2P=805  (1.8s -> 1.6s)
+[11/25] 7c0cda153d30 Improve InvalidURL error message. (#3250)          VALID   F2P=2   P2P=80   (0.6s -> 0.6s)
+[12/25] db9072f998b5 Add URL parsing tests from WHATWG (#3188)          REJECTED  tests still fail with the real fix (environm
+[13/25] a7092af2fda7 Resolve queryparam quoting (#3187)                 VALID   F2P=3   P2P=79   (0.6s -> 0.5s)
+[14/25] 392dbe45f086 Add support for zstd decoding (#3139)              VALID   F2P=21  P2P=109  (1.2s -> 1.1s)
+[15/25] 0006ed0547f8 format (#3131)                                     REJECTED  tests already pass without the fix
+[16/25] 6d852d319acd Fix client.send() timeout new Request instance (   REJECTED  tests still fail with the real fix (environm
+[17/25] cabd1c095e52 Deprecate `app=...` in favor of explicit `WSGITr   VALID   F2P=3   P2P=36   (0.6s -> 0.5s)
+[18/25] 4f6edf36e93f test `parse_header_links` via public api (#3061) 

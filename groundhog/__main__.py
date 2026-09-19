@@ -12,6 +12,7 @@ USAGE = """groundhog -- replay your git history as a regression test for coding 
   groundhog run      <repo>   run agents against the validated tasks
   groundhog report            print the table and build the leaderboard page
   groundhog compare  <a> <b>  paired comparison of two runs, for CI and ablations
+  groundhog export   <repo>   write validated tasks in SWE-bench instance format
   groundhog demo              see all of the above run end to end, no API key needed
 
 Each command takes --help.
@@ -34,6 +35,8 @@ def main() -> int:
         from .report import main as run_it
     elif command == "compare":
         from .compare import main as run_it
+    elif command == "export":
+        from .export import main as run_it
     elif command == "demo":
         from .demo import main as run_it
     else:
