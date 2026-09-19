@@ -69,5 +69,5 @@ class TestInstance:
         """An agent given an exact executable spec is doing a different job
         from one given a vague human bug report. Do not blur that."""
         statement = export.to_instance(repo, "o/n", task(repo))["problem_statement"]
-        assert "not from a GitHub issue" in statement
+        assert "did not come from a GitHub issue" in statement
         assert "t.py::test_f" in statement

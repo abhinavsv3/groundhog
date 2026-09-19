@@ -17,4 +17,14 @@ validating 25 candidates
 [15/25] 0006ed0547f8 format (#3131)                                     REJECTED  tests already pass without the fix
 [16/25] 6d852d319acd Fix client.send() timeout new Request instance (   REJECTED  tests still fail with the real fix (environm
 [17/25] cabd1c095e52 Deprecate `app=...` in favor of explicit `WSGITr   VALID   F2P=3   P2P=36   (0.6s -> 0.5s)
-[18/25] 4f6edf36e93f test `parse_header_links` via public api (#3061) 
+[18/25] 4f6edf36e93f test `parse_header_links` via public api (#3061)   REJECTED  tests already pass without the fix
+[19/25] 99cba6ac642b Fix RFC 2069 mode digest authentication (#3045)    VALID   F2P=1   P2P=7    (0.5s -> 0.5s)
+[20/25] a11fc3849b94 Cleanup URL percent-encoding behavior. (#2990)     VALID   F2P=1   P2P=76   (0.7s -> 0.5s)
+[21/25] 3b9060ee1121 Fix environment proxies (#2741)                    VALID   F2P=1   P2P=52   (0.7s -> 0.7s)
+[22/25] 2318fd822cdb Enabling `ruff` C416 (#3001)                       REJECTED  tests already pass without the fix
+[23/25] 1e110964736a Fixed `iter_text` adding an empty string (#2998)   VALID   F2P=1   P2P=34   (0.6s -> 0.5s)
+[24/25] f8981f3d124f Add the 'proxy' parameter and deprecate 'proxies   VALID   F2P=43  P2P=36   (1.5s -> 1.6s)
+[25/25] b471f01d668b Allow URLs where username or password contains u   REJECTED  no test flipped from failing to passing
+
+16/25 became real tasks in 41s -> tasks/httpx-validated.jsonl
+task set 6849c3c035052624  (2023-12-11 .. 2024-11-22)

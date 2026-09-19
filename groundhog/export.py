@@ -28,8 +28,9 @@ The following tests fail in this repository and must pass:
 
 {tests}
 
-Note: this task was generated from a commit by Groundhog, not from a GitHub
-issue. There is no human bug report -- the failing tests are the specification.
+Note: this task was generated from a commit by Groundhog.
+It did not come from a GitHub issue, and there is no human bug report --
+the failing tests above are the entire specification.
 """
 
 

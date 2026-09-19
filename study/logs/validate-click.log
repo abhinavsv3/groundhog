@@ -1,0 +1,10 @@
+validating 25 candidates
+
+[1/25] 271effb3d96d Add `Option.get_help_spec` to return the option'    REJECTED  no test flipped from failing to passing
+[2/25] fc518e41218b Fix race condition on `KeyboardInterrupt` arrivi    VALID   F2P=5   P2P=3    (0.2s -> 0.2s)
+[3/25] f58ca3e81424 Fix `copy`, `deepcopy` and `pickle` of `Sentinel    VALID   F2P=3   P2P=7    (0.2s -> 0.2s)
+[4/25] a1d87858abd7 Add support of `pathlib.Path` to `edit`             REJECTED  tests still fail with the real fix (environm
+[5/25] a6256bfb5971 Forwards all user's parameters set in `PAGER`       VALID   F2P=3   P2P=187  (1.2s -> 0.9s)
+[6/25] bc32a92cd2ae Refactor pager stream handling; drop text/binary    VALID   F2P=4   P2P=203  (1.1s -> 0.9s)
+[7/25] 1f9cd54f686e Close the pager temp file before unlinking it       VALID   F2P=1   P2P=184  (0.5s -> 0.5s)
+[8/25] f316d5cb3aa8 Land the progress bar on its final position       
