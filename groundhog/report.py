@@ -111,12 +111,54 @@ def write_site(rows: list[dict], records: list[dict], repo: str, out: Path, temp
     out.write_text(html)
 
 
+def by_trait(records: list[dict], tasks: dict[str, dict]) -> None:
+    """Where an agent is reliable, and where it is not."""
+    traits = [("shape", "SCOPE"), ("size", "SIZE"), ("concurrency", "CONCURRENCY")]
+    buckets: dict[tuple[str, str], list[bool]] = defaultdict(list)
+
+    for r in records:
+        task = tasks.get(r["task_id"])
+        if not task:
+            continue
+        for key, _ in traits:
+            value = task.get(key)
+            if value in (None, ""):
+                continue
+            label = {True: "yes", False: "no"}.get(value, value)
+            buckets[(key, label)].append(bool(r["solved"]))
+
+    # Only worth printing where a trait actually varies. A task set that is
+    # entirely single-file small changes has no contrast to show, and an empty
+    # section implies the breakdown found nothing rather than that there was
+    # nothing to find.
+    contrasts = [
+        (key, heading) for key, heading in traits
+        if len({k[1] for k in buckets if k[0] == key}) >= 2
+    ]
+    if not contrasts:
+        return
+
+    print(f"\n{BOLD}BY CHANGE SHAPE{RESET}")
+    for key, heading in contrasts:
+        rows = sorted((k[1], v) for k, v in buckets.items() if k[0] == key)
+        print(f"  {DIM}{heading}{RESET}")
+        for label, outcomes in rows:
+            solved, total = sum(outcomes), len(outcomes)
+            lo, hi = wilson(solved, total)
+            bar = "#" * round(solved / total * 20) if total else ""
+            print(f"    {label:<14}{solved:>3}/{total:<4}{solved / total:>6.0%}"
+                  f"   {lo:.0%}–{hi:.0%}".ljust(46) + f"{DIM}{bar}{RESET}")
+    print(f"\n  {DIM}Small buckets have wide intervals; read the range, not the "
+          f"point.{RESET}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--results", type=Path, default=Path("results/results.jsonl"))
     ap.add_argument("--repo", default="", help="repo name shown on the page")
     ap.add_argument("--site", type=Path, help="also write a standalone HTML page here")
     ap.add_argument("--template", type=Path, default=Path("site/template.html"))
+    ap.add_argument("--tasks", type=Path, help="validated tasks, for the change-shape breakdown")
     cfg = ap.parse_args()
 
     if not cfg.results.exists():
@@ -125,6 +167,14 @@ def main() -> int:
     records = [json.loads(l) for l in cfg.results.read_text().splitlines() if l.strip()]
     rows = summarise(records)
     print_table(rows, records)
+
+    if cfg.tasks and cfg.tasks.exists():
+        tasks = {}
+        for line in cfg.tasks.read_text().splitlines():
+            if line.strip():
+                task = json.loads(line)
+                tasks[task["sha"][:12]] = task
+        by_trait(records, tasks)
 
     if cfg.site:
         write_site(rows, records, cfg.repo or "unknown repo", cfg.site, cfg.template)

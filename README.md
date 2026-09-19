@@ -131,7 +131,7 @@ python -m groundhog run      /path/to/repo --models anthropic:claude-opus-5,open
 # or benchmark the agent you actually use
 python -m groundhog run /path/to/repo \
     --agent-cmd "aider --yes --message-file {prompt_file}"
-python -m groundhog report   --site site/index.html --repo owner/name
+python -m groundhog report   --tasks tasks/validated.jsonl --site site/index.html
 
 # did a change to your agent setup help or hurt?
 python -m groundhog compare results/baseline.jsonl results/current.jsonl \
@@ -194,6 +194,7 @@ Early, but working end to end.
 - [x] Repeats, Wilson intervals and paired significance testing
 - [x] Task deduplication, so related commits are not counted as independent
 - [x] `--resume` for interrupted runs, and each attempt's diff saved
+- [x] `--max-spend` ceiling, and a pass-rate breakdown by change shape
 - [x] Regression tracking (`groundhog compare`) and a CI workflow
 
 ## Contributing
@@ -299,6 +300,12 @@ caught it, and it failed *silently* — worth knowing if you build something sim
 **Per-repo results are not comparable across repos.** A model scoring 60% here and
 45% elsewhere says nothing about the two repos' relative difficulty. Hold the repo
 fixed and compare models.
+
+**The task set skews small, local and synchronous.** Mining selects single
+commits of 3–200 lines across at most 5 files, with tests. Across 26 mined httpx
+candidates — from an async HTTP library — **none touched concurrency code at
+all.** `report --tasks` breaks the score down by scope, size and concurrency so
+that skew is visible rather than averaged away.
 
 **Tests are a proxy for correctness, not correctness.** An agent can make tests
 pass in ways the original author would reject in review. Groundhog checks that

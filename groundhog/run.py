@@ -227,6 +227,21 @@ class Workspace:
         return f"error: unknown tool {name}"
 
 
+def spent_so_far(path: Path) -> float:
+    """Cost already recorded in an output file, for resumed runs."""
+    if not path.exists():
+        return 0.0
+    total = 0.0
+    for line in path.read_text().splitlines():
+        if not line.strip():
+            continue
+        try:
+            total += json.loads(line).get("cost_usd") or 0.0
+        except (json.JSONDecodeError, TypeError):
+            continue
+    return total
+
+
 def already_done(path: Path) -> set[tuple[str, str, int]]:
     """(task_id, model, run_index) triples already recorded in an output file.
 
@@ -434,6 +449,8 @@ def main() -> int:
     ap.add_argument("--no-patches", action="store_true", help="do not save each attempt's diff")
     ap.add_argument("--resume", action="store_true",
                     help="append to --out, skipping attempts already recorded there")
+    ap.add_argument("--max-spend", type=float, default=None,
+                    help="stop cleanly once cumulative cost would exceed this (USD)")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--repeats", type=int, default=1,
                     help="attempts per task; >1 is required for any claim about a small effect")
@@ -473,6 +490,13 @@ def main() -> int:
 
     cfg.out.parent.mkdir(parents=True, exist_ok=True)
     records: list[Attempt] = []
+    spent = spent_so_far(cfg.out) if cfg.resume else 0.0
+    skipped_for_budget = 0
+    unpriced: set[str] = set()
+
+    if cfg.max_spend is not None and spent:
+        print(f"budget: ${spent:.2f} already spent, ceiling ${cfg.max_spend:.2f}\n",
+              file=sys.stderr)
 
     with cfg.out.open("a" if cfg.resume else "w") as fh:
         for model in models:
@@ -484,10 +508,22 @@ def main() -> int:
                     tag = f" r{run_index + 1}" if cfg.repeats > 1 else ""
                     label = f"{model:<32}{tag} [{i}/{len(tasks)}] {task['subject'][:34]}"
                     print(f"{label:<88}", end="", flush=True, file=sys.stderr)
+                    if cfg.max_spend is not None and spent >= cfg.max_spend:
+                        skipped_for_budget += 1
+                        print("  SKIPPED (budget)", file=sys.stderr)
+                        continue
+
                     rec = attempt(cfg.repo, task, model, cfg, run_index)
                     records.append(rec)
                     fh.write(json.dumps(asdict(rec)) + "\n")
                     fh.flush()
+
+                    if rec.cost_usd is None:
+                        # A ceiling that silently never triggers is worse than
+                        # none, so say so rather than assuming zero.
+                        unpriced.add(rec.model)
+                    else:
+                        spent += rec.cost_usd
                     solved += rec.solved
                     attempted += 1
                     mark = "PASS" if rec.solved else ("ERROR" if rec.error else "fail")
@@ -495,6 +531,16 @@ def main() -> int:
             print(f"{'':<32} -> {solved}/{attempted}\n", file=sys.stderr)
 
     print(f"{len(records)} attempts -> {cfg.out}", file=sys.stderr)
+    if cfg.max_spend is not None:
+        print(f"spent ${spent:.2f} of ${cfg.max_spend:.2f}", file=sys.stderr)
+    if skipped_for_budget:
+        print(f"skipped {skipped_for_budget} attempts at the spend ceiling — "
+              f"re-run with --resume and a higher --max-spend to continue",
+              file=sys.stderr)
+    if unpriced and cfg.max_spend is not None:
+        print(f"WARNING: no pricing for {', '.join(sorted(unpriced))} — those "
+              f"attempts did not count toward the ceiling. Set GROUNDHOG_PRICING.",
+              file=sys.stderr)
     return 0
 
 

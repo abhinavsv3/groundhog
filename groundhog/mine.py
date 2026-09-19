@@ -36,6 +36,13 @@ NOISE_PATTERNS = [
 ]
 
 # git writes revert subjects verbatim, so the target is recoverable.
+# Concurrency is the shape agents most reliably get wrong, so it is worth
+# separating out rather than averaging into one score.
+CONCURRENCY = re.compile(
+    r"\b(async\s+def|await\s|asyncio|threading|multiprocessing|"
+    r"concurrent\.futures|trio\.|anyio\.|Lock\(|Semaphore\()"
+)
+
 REVERT = re.compile(r'^Revert\s+"(?P<subject>.+)"\s*$')
 
 SOURCE_EXTENSIONS = {".py", ".go", ".rs", ".ts", ".tsx", ".js", ".jsx", ".java", ".rb", ".c", ".cc", ".cpp", ".h"}
@@ -64,10 +71,56 @@ class Candidate:
     source_lines_changed: int
     test_lines_added: int
     reverts: str = ""
+    shape: str = ""       # single-file | cross-module
+    size: str = ""        # small | medium | large
+    concurrency: bool = False
+    new_test_file: bool = False
 
     @property
     def task_id(self) -> str:
         return self.sha[:12]
+
+
+def classify(repo: Path, sha: str, parent: str, source_files: list[str],
+             test_files: list[str], source_lines: int) -> dict:
+    """Describe the *shape* of a change, not just its size.
+
+    One aggregate pass rate is a curiosity. "Reliable on single-file fixes,
+    struggles on cross-module ones" is a policy -- it tells a team where to
+    trust an agent unsupervised and where to require review.
+    """
+    if source_lines < 20:
+        size = "small"
+    elif source_lines <= 80:
+        size = "medium"
+    else:
+        size = "large"
+
+    try:
+        diff = git(repo, "show", "--format=", sha, "--", *source_files)
+    except RuntimeError:
+        diff = ""
+    touched_lines = "\n".join(
+        line for line in diff.splitlines() if line.startswith(("+", "-"))
+    )
+
+    new_test_file = False
+    for path in test_files:
+        try:
+            subprocess.run(
+                ["git", "-C", str(repo), "cat-file", "-e", f"{parent}:{path}"],
+                capture_output=True, check=True,
+            )
+        except subprocess.CalledProcessError:
+            new_test_file = True  # did not exist at the parent commit
+            break
+
+    return {
+        "shape": "single-file" if len(source_files) == 1 else "cross-module",
+        "size": size,
+        "concurrency": bool(CONCURRENCY.search(touched_lines)),
+        "new_test_file": new_test_file,
+    }
 
 
 def git(repo: Path, *args: str) -> str:
@@ -156,9 +209,11 @@ def evaluate(repo: Path, sha: str, date: str, subject: str, cfg: argparse.Namesp
         return None, f"touches too many files ({len(source_files)})"
 
     revert_match = REVERT.match(subject.strip())
+    traits = classify(repo, sha, parent, sorted(source_files), sorted(test_files), source_lines)
 
     return (
         Candidate(
+            **traits,
             reverts=revert_match.group("subject") if revert_match else "",
             sha=sha,
             parent=parent,
