@@ -41,6 +41,81 @@ def summarise(records: list[dict]) -> list[dict]:
     return sorted(rows, key=lambda r: (-r["pass_rate"], r["cost"] or 0))
 
 
+# Approximate, published training cutoffs. Approximate is the point: these
+# are announced dates, not observed ones, and a model's data can trail its
+# stated cutoff. Override with --cutoff.
+CUTOFFS = {
+    "claude-opus-5": "2026-05-01",
+    "claude-sonnet-5": "2026-05-01",
+    "claude-haiku-4-5": "2025-10-01",
+    "gpt-5.2": "2025-12-01",
+    "qwen2.5-coder": "2024-09-01",
+    "qwen3": "2025-04-01",
+    "llama3.1": "2023-12-01",
+    "mistral": "2023-09-01",
+}
+
+
+def cutoff_for(model: str, overrides: dict[str, str]) -> str | None:
+    name = short(model)
+    for key, date in {**CUTOFFS, **overrides}.items():
+        if key in name:
+            return date
+    return None
+
+
+def contamination(records: list[dict], tasks: dict[str, dict],
+                  overrides: dict[str, str]) -> None:
+    """Solve rate on commits predating a model's cutoff, versus after it.
+
+    If public repo history is memorised, the older cohort should score higher.
+    A gap is evidence of contamination; it is not proof, because post-cutoff
+    commits are also *newer* commits and may differ in size, area and review
+    standards. This measures era, and era is only partly contamination.
+    """
+    rows: dict[tuple[str, str], list[bool]] = defaultdict(list)
+    missing: set[str] = set()
+
+    for r in records:
+        task = tasks.get(r["task_id"])
+        if not task or not task.get("date"):
+            continue
+        cutoff = cutoff_for(r["model"], overrides)
+        if not cutoff:
+            missing.add(short(r["model"]))
+            continue
+        era = "pre-cutoff" if task["date"][:10] < cutoff else "post-cutoff"
+        rows[(r["model"], era)].append(bool(r["solved"]))
+
+    if not rows:
+        if missing:
+            print(f"\n{DIM}No cutoff known for {', '.join(sorted(missing))} — "
+                  f"pass --cutoff name=YYYY-MM-DD for the contamination split.{RESET}")
+        return
+
+    print(f"\n{BOLD}BY COMMIT ERA{RESET}  {DIM}(pre/post the model's training cutoff){RESET}")
+    print(f"{BOLD}{'MODEL':<22}{'ERA':<13}{'SOLVED':>8}{'RATE':>7}{'95% CI':>15}{RESET}")
+    for model in sorted({m for m, _ in rows}):
+        cutoff = cutoff_for(model, overrides)
+        for era in ("pre-cutoff", "post-cutoff"):
+            outcomes = rows.get((model, era), [])
+            if not outcomes:
+                continue
+            solved, total = sum(outcomes), len(outcomes)
+            lo, hi = wilson(solved, total)
+            band = f"{lo:.0%} – {hi:.0%}"
+            print(f"{short(model)[:20]:<22}{era:<13}"
+                  f"{f'{solved}/{total}':>8}{solved / total:>7.0%}{band:>15}")
+        print(f"{DIM}{'':<22}cutoff {cutoff}{RESET}")
+
+    print(f"\n  {DIM}Post-cutoff commits are also newer commits. A gap here is "
+          f"evidence of\n  memorisation, not proof of it — cutoff dates are "
+          f"approximate and era\n  confounds with code age, size and review "
+          f"standards.{RESET}")
+    if missing:
+        print(f"  {DIM}No cutoff known for: {', '.join(sorted(missing))}{RESET}")
+
+
 def short(model: str) -> str:
     """Drop the provider prefix; `anthropic:claude-opus-5` -> `claude-opus-5`."""
     return model.split(":", 1)[-1] if ":" in model else model
@@ -215,6 +290,8 @@ def main() -> int:
     ap.add_argument("--site", type=Path, help="also write a standalone HTML page here")
     ap.add_argument("--template", type=Path, default=Path("site/template.html"))
     ap.add_argument("--tasks", type=Path, help="validated tasks, for the change-shape breakdown")
+    ap.add_argument("--cutoff", action="append", default=[], metavar="NAME=YYYY-MM-DD",
+                    help="training cutoff for a model, for the contamination split")
     cfg = ap.parse_args()
 
     if not cfg.results.exists():
@@ -231,6 +308,12 @@ def main() -> int:
                 task = json.loads(line)
                 tasks[task["sha"][:12]] = task
         by_trait(records, tasks)
+        overrides = {}
+        for item in cfg.cutoff:
+            if "=" in item:
+                name, _, date = item.partition("=")
+                overrides[name.strip()] = date.strip()
+        contamination(records, tasks, overrides)
     mechanics(records)
 
     if cfg.site:

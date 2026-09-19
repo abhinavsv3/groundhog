@@ -18,6 +18,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import hashlib
+import shlex
 import shutil
 import subprocess
 import sys
@@ -34,6 +36,23 @@ class RunResult:
     passed: bool
     duration: float
     output: str
+
+
+def wrap(cmd: str, wrapper: str | None) -> str:
+    """Apply a user-supplied environment wrapper to a test command.
+
+    Auto-detection handles pyproject, dependency groups and requirements files.
+    It does not handle conda, pixi, nix or docker, and it deliberately will not
+    call an LLM to infer them -- mining and validation work with no API key, and
+    that is worth more than the last slice of coverage. This is the escape
+    hatch: Groundhog need not understand your environment, only be told how to
+    enter it.
+
+        --env-cmd "conda run -n myenv {cmd}"
+    """
+    if not wrapper:
+        return cmd
+    return wrapper.replace("{cmd}", shlex.quote(cmd)) if "{cmd}" in wrapper else f"{wrapper} {cmd}"
 
 
 def run(
@@ -105,6 +124,30 @@ def source_roots(tree: Path) -> list[Path]:
     if (tree / "src").is_dir():
         roots.insert(0, tree / "src")
     return roots
+
+
+def manifest(repo: Path, tasks: list[dict], cfg) -> dict:
+    """A stable identity for a task set.
+
+    `compare` pairs on task ids and silently intersects whatever it is handed,
+    so re-mining with a different window between two runs quietly shrinks the
+    comparison rather than failing. The hash makes that detectable, and makes
+    `groundhog --version` plus a hash a sufficient citation -- which is what the
+    README currently asks people to assemble by hand.
+    """
+    ids = sorted(t["sha"] for t in tasks)
+    digest = hashlib.sha256("\n".join(ids).encode()).hexdigest()[:16]
+    dates = sorted(t.get("date", "") for t in tasks if t.get("date"))
+    return {
+        "repo": repo.name,
+        "head": git(repo, "rev-parse", "HEAD").strip(),
+        "task_count": len(tasks),
+        "commit_range": [dates[0][:10], dates[-1][:10]] if dates else [],
+        "mined_since": getattr(cfg, "since", None),
+        "p2p_scope": getattr(cfg, "p2p_scope", "file"),
+        "deduplicated": not getattr(cfg, "keep_duplicates", False),
+        "hash": digest,
+    }
 
 
 def deduplicate(tasks: list[dict]) -> tuple[list[dict], list[tuple[dict, dict]]]:
@@ -204,9 +247,10 @@ def validate_one(
         # which is cheap and one file wide -- an agent that breaks a different
         # module goes unnoticed. "full" watches the whole suite.
         scope = getattr(cfg, "p2p_scope", "file")
+        env_cmd = getattr(cfg, "env_cmd", None)
         p2p_cmd = cfg.test_cmd.format(tests="") if scope == "full" else test_cmd
         # -v without -x: we need every test's outcome, not an early exit
-        verbose_cmd = test_cmd.replace(" -x ", " ").replace(" -q", "") + " -v --tb=no"
+        verbose_cmd = wrap(test_cmd.replace(" -x ", " ").replace(" -q", "") + " -v --tb=no", env_cmd)
         pypath = {"PYTHONPATH": ":".join(str(r) for r in source_roots(tree))}
 
         before = run(verbose_cmd, tree, cfg.timeout, env_path, pypath)
@@ -252,6 +296,7 @@ def validate_one(
         verdict.update(
             status="valid",
             test_cmd=test_cmd,
+            env_cmd=env_cmd or "",
             p2p_scope=scope,
             p2p_cmd=p2p_cmd,
             fail_to_pass=fail_to_pass,
@@ -278,6 +323,7 @@ def main() -> int:
     ap.add_argument("--venv", type=Path, help="virtualenv to run tests inside (auto-built if omitted)")
     ap.add_argument("--no-auto-env", action="store_true", help="do not build an environment automatically")
     ap.add_argument("--timeout", type=int, default=300)
+    ap.add_argument("--env-cmd", help='wrap every test command, e.g. "conda run -n myenv {cmd}"')
     ap.add_argument("--p2p-scope", choices=("file", "full"), default="file",
                     help="which tests must stay green: the task's own files, or the whole suite")
     ap.add_argument("--limit", type=int, default=0, help="stop after N candidates")
@@ -320,9 +366,11 @@ def main() -> int:
         valid, duplicates = deduplicate(valid)
 
     cfg.out.parent.mkdir(parents=True, exist_ok=True)
+    stamp = manifest(cfg.repo, valid, cfg)
     with cfg.out.open("w") as fh:
         for task in valid:
-            fh.write(json.dumps(task) + "\n")
+            fh.write(json.dumps({**task, "manifest": stamp["hash"]}) + "\n")
+    cfg.out.with_suffix(".manifest.json").write_text(json.dumps(stamp, indent=2))
 
     if duplicates:
         print(f"\ndropped {len(duplicates)} duplicate task(s) -- same tests flip, "
@@ -335,6 +383,7 @@ def main() -> int:
 
     elapsed = time.monotonic() - started
     print(f"\n{len(valid)}/{len(tasks)} became real tasks in {elapsed:.0f}s -> {cfg.out}", file=sys.stderr)
+    print(f"task set {stamp['hash']}  ({stamp['commit_range'][0] if stamp['commit_range'] else '?'} .. {stamp['commit_range'][-1] if stamp['commit_range'] else '?'})", file=sys.stderr)
     return 0
 
 

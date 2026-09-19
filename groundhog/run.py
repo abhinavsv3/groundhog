@@ -23,7 +23,7 @@ from pathlib import Path
 from .agents import build_prompt, run_external
 from .environment import DetectionFailed, detect, ensure
 from .models import ProviderError, Usage, connect, price_of
-from .validate import git, passing, run, source_roots, tail
+from .validate import git, passing, run, source_roots, tail, wrap
 
 SYSTEM = """You are fixing a bug in a real codebase.
 
@@ -89,6 +89,7 @@ class Attempt:
     broke_pass_to_pass: int = 0
     fail_to_pass_passed: bool = False  # would a FAIL_TO_PASS-only harness call this solved?
     p2p_scope: str = "file"
+    manifest: str = ""
     patch_file: str = ""
     tools: dict = field(default_factory=dict)
     tampered_with_tests: bool = False
@@ -187,7 +188,8 @@ class Workspace:
         return target
 
     def run_tests(self) -> tuple[bool, str]:
-        result = run(self.test_cmd, self.tree, self.timeout, self.venv, self.env)
+        result = run(wrap(self.test_cmd, self.task.get("env_cmd")),
+                     self.tree, self.timeout, self.venv, self.env)
         return result.passed, result.output
 
     def score(self) -> tuple[bool, int, str]:
@@ -200,7 +202,8 @@ class Workspace:
         # Grade against whatever scope the task was validated at. A pass rate
         # measured at "file" scope and one at "full" scope are not comparable.
         command = self.task.get("p2p_cmd") or self.test_cmd
-        verbose = command.replace(" -x ", " ").replace(" -q", "") + " -v --tb=no"
+        verbose = wrap(command.replace(" -x ", " ").replace(" -q", "") + " -v --tb=no",
+                       self.task.get("env_cmd"))
         budget = self.timeout * (3 if self.task.get("p2p_scope") == "full" else 1)
         result = run(verbose, self.tree, budget, self.venv, self.env)
         now = passing(result.output)
@@ -370,6 +373,7 @@ def finish(record: Attempt, ws: "Workspace", started: float,
     """
     try:
         record.p2p_scope = ws.task.get("p2p_scope", "file")
+        record.manifest = ws.task.get("manifest", "")
         record.tools = asdict(ws.stats)
         record.files_touched = record.files_touched or ws.touched
         if out_dir is not None:

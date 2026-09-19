@@ -51,6 +51,15 @@ def main() -> int:
         print("one side has no matching records", file=sys.stderr)
         return 2
 
+    stamps_a = {r.get("manifest", "") for r in a}
+    stamps_b = {r.get("manifest", "") for r in b}
+    if stamps_a and stamps_b and stamps_a != stamps_b and all(stamps_a | stamps_b):
+        print(f"\n{RED}WARNING: these runs used different task sets "
+              f"({', '.join(sorted(stamps_a))} vs {', '.join(sorted(stamps_b))}).{RESET}")
+        print(f"{DIM}  Only shared task ids are compared, so the result below is "
+              f"a smaller\n  comparison than it appears. Pin one task set and "
+              f"re-run both arms.{RESET}")
+
     result = mcnemar(a, b)
     lo_a, hi_a = wilson(round(result.a_rate * result.shared_tasks), result.shared_tasks)
     lo_b, hi_b = wilson(round(result.b_rate * result.shared_tasks), result.shared_tasks)
