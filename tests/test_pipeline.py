@@ -12,7 +12,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from groundhog import mine, validate  # noqa: E402
+from groundhog import mine, run as run_command, validate  # noqa: E402
 
 
 def sh(cwd: Path, *args: str) -> None:
@@ -144,3 +144,47 @@ class TestSourceRoots:
 
     def test_flat_layout_is_just_the_tree(self, tmp_path):
         assert validate.source_roots(tmp_path) == [tmp_path]
+
+
+class TestRunSpendLimit:
+    def test_stops_after_known_spend_reaches_limit_and_reports_skipped(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        tasks = tmp_path / "tasks.jsonl"
+        tasks.write_text("".join(
+            json.dumps({
+                "sha": f"{i + 1:012x}" + "0" * 28,
+                "subject": f"task {i}",
+                "test_files": [],
+            }) + "\n"
+            for i in range(3)
+        ))
+        out = tmp_path / "results.jsonl"
+        calls = []
+
+        def fake_attempt(repo, task, model, cfg, run_index):
+            calls.append(task["subject"])
+            return run_command.Attempt(
+                repo="sample", task_id=task["sha"][:12], subject=task["subject"],
+                model=model, cost_usd=0.60,
+            )
+
+        monkeypatch.setattr(run_command, "attempt", fake_attempt)
+        monkeypatch.setattr(sys, "argv", [
+            "groundhog run", str(tmp_path), "--tasks", str(tasks), "--out", str(out),
+            "--models", "openai:gpt-5.2", "--max-spend", "0.50", "--no-auto-env",
+        ])
+
+        assert run_command.main() == 0
+        assert calls == ["task 0"]
+        assert len(out.read_text().splitlines()) == 1
+        assert "skipped 2 attempts" in capsys.readouterr().err
+
+    def test_recorded_spend_ignores_unknown_costs_and_bad_lines(self, tmp_path):
+        results = tmp_path / "results.jsonl"
+        results.write_text(
+            '{"cost_usd": 1.25}\n{"cost_usd": null}\n'
+            '{"cost_usd": -2}\n{"cost_usd": NaN}\nnot-json\n'
+        )
+
+        assert run_command.recorded_spend(results) == 1.25
