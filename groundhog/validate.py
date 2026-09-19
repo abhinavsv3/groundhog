@@ -127,6 +127,11 @@ def validate_one(
         git(tree, "checkout", sha, "--", *task["test_files"])
 
         test_cmd = cfg.test_cmd.format(tests=" ".join(task["test_files"]))
+        # PASS_TO_PASS scope. "file" watches only the task's own test files,
+        # which is cheap and one file wide -- an agent that breaks a different
+        # module goes unnoticed. "full" watches the whole suite.
+        scope = getattr(cfg, "p2p_scope", "file")
+        p2p_cmd = cfg.test_cmd.format(tests="") if scope == "full" else test_cmd
         # -v without -x: we need every test's outcome, not an early exit
         verbose_cmd = test_cmd.replace(" -x ", " ").replace(" -q", "") + " -v --tb=no"
         pypath = {"PYTHONPATH": ":".join(str(r) for r in source_roots(tree))}
@@ -152,7 +157,17 @@ def validate_one(
         # stops an agent from "solving" a task by breaking everything around it.
         was, now = passing(before.output), passing(after.output)
         fail_to_pass = sorted(now - was)
-        pass_to_pass = sorted(now & was)
+
+        if scope == "full":
+            # Re-run the whole suite in the fixed state: everything green here
+            # must stay green, wherever in the repo it lives.
+            wide = run(
+                p2p_cmd.replace(" -x ", " ").replace(" -q", "") + " -v --tb=no",
+                tree, cfg.timeout * 3, env_path, pypath,
+            )
+            pass_to_pass = sorted(passing(wide.output) - set(fail_to_pass))
+        else:
+            pass_to_pass = sorted(now & was)
 
         if not fail_to_pass:
             verdict.update(
@@ -164,6 +179,8 @@ def validate_one(
         verdict.update(
             status="valid",
             test_cmd=test_cmd,
+            p2p_scope=scope,
+            p2p_cmd=p2p_cmd,
             fail_to_pass=fail_to_pass,
             pass_to_pass=pass_to_pass,
             fail_seconds=round(before.duration, 1),
@@ -188,6 +205,8 @@ def main() -> int:
     ap.add_argument("--venv", type=Path, help="virtualenv to run tests inside (auto-built if omitted)")
     ap.add_argument("--no-auto-env", action="store_true", help="do not build an environment automatically")
     ap.add_argument("--timeout", type=int, default=300)
+    ap.add_argument("--p2p-scope", choices=("file", "full"), default="file",
+                    help="which tests must stay green: the task's own files, or the whole suite")
     ap.add_argument("--limit", type=int, default=0, help="stop after N candidates")
     cfg = ap.parse_args()
 

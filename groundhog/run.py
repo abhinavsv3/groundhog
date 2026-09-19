@@ -56,6 +56,8 @@ class Attempt:
     agent: str = "builtin"
     broke_pass_to_pass: int = 0
     fail_to_pass_passed: bool = False  # would a FAIL_TO_PASS-only harness call this solved?
+    p2p_scope: str = "file"
+    patch_file: str = ""
     tampered_with_tests: bool = False
     error: str = ""
     files_touched: list[str] = field(default_factory=list)
@@ -159,8 +161,12 @@ class Workspace:
         PASS_TO_PASS test still does. Without the second half, deleting the
         rest of the suite would read as a fix.
         """
-        verbose = self.test_cmd.replace(" -x ", " ").replace(" -q", "") + " -v --tb=no"
-        result = run(verbose, self.tree, self.timeout, self.venv, self.env)
+        # Grade against whatever scope the task was validated at. A pass rate
+        # measured at "file" scope and one at "full" scope are not comparable.
+        command = self.task.get("p2p_cmd") or self.test_cmd
+        verbose = command.replace(" -x ", " ").replace(" -q", "") + " -v --tb=no"
+        budget = self.timeout * (3 if self.task.get("p2p_scope") == "full" else 1)
+        result = run(verbose, self.tree, budget, self.venv, self.env)
         now = passing(result.output)
 
         f2p = self.task.get("fail_to_pass") or []
@@ -221,6 +227,12 @@ class Workspace:
         return f"error: unknown tool {name}"
 
 
+def patch_dir(cfg: argparse.Namespace) -> Path | None:
+    if getattr(cfg, "no_patches", False):
+        return None
+    return Path(getattr(cfg, "out", Path("results/results.jsonl"))).parent / "patches"
+
+
 def changed_files(ws: "Workspace") -> list[str]:
     """Source files the agent actually modified, from git's point of view."""
     out = git(ws.tree, "status", "--porcelain", check=False)
@@ -232,9 +244,51 @@ def changed_files(ws: "Workspace") -> list[str]:
     return files
 
 
-def finish(record: Attempt, ws: "Workspace", started: float) -> None:
+def save_patch(ws: "Workspace", record: Attempt, out_dir: Path) -> None:
+    """Keep the diff. It is the only record of *how* an attempt failed.
+
+    Where fail_to_pass_passed disagrees with solved, this file is the
+    explanation -- and without it that comparison is uninspectable after the
+    worktree is destroyed.
+    """
+    try:
+        # -N marks untracked files intent-to-add so they appear in the diff
+        # without staging their contents; "diff HEAD" then captures staged and
+        # unstaged work alike. Plain "git diff" misses both, which silently
+        # hides any agent that stages its edits or creates a new file.
+        git(ws.tree, "add", "-A", "-N", check=False)
+        # Exclude the task's test files: Groundhog checked those out itself as
+        # part of setup, so leaving them in makes the patch look like the agent
+        # edited the tests. Real test edits are caught by tests_were_modified().
+        excludes = [
+            ":(exclude)**/__pycache__/**", ":(exclude)*.pyc",
+            ":(exclude).pytest_cache/**", ":(exclude)**/*.egg-info/**",
+            *[f":(exclude){rel}" for rel in ws.test_files],
+        ]
+        diff = git(ws.tree, "diff", "HEAD", "--", ".", *excludes, check=False)
+        if not diff.strip():
+            return
+        out_dir.mkdir(parents=True, exist_ok=True)
+        safe_model = record.model.replace("/", "_").replace(":", "-")
+        path = out_dir / f"{record.task_id}.{safe_model}.{record.run_index}.diff"
+        path.write_text(diff)
+        record.patch_file = str(path)
+
+        human = out_dir / f"{record.task_id}.human.diff"
+        if not human.exists():
+            gold = git(ws.repo, "show", ws.task["sha"], "--", *ws.task["source_files"], check=False)
+            if gold.strip():
+                human.write_text(gold)
+    except Exception:
+        pass  # a missing patch must never fail an otherwise good attempt
+
+
+def finish(record: Attempt, ws: "Workspace", started: float, out_dir: Path | None = None) -> None:
     """Grade an attempt and close its workspace. Applies to any agent."""
     try:
+        record.p2p_scope = ws.task.get("p2p_scope", "file")
+        if out_dir is not None:
+            save_patch(ws, record, out_dir)
         solved, broken, _ = ws.score()
         record.solved = solved
         record.broke_pass_to_pass = broken
@@ -273,7 +327,7 @@ def attempt(repo: Path, task: dict, model: str, cfg: argparse.Namespace, run_ind
         except Exception as exc:
             record.error = f"{type(exc).__name__}: {exc}"[:200]
         finally:
-            finish(record, ws, started)
+            finish(record, ws, started, patch_dir(cfg))
         return record
 
     try:
@@ -355,6 +409,7 @@ def main() -> int:
         "e.g. --agent-cmd \"aider --yes --message-file {prompt_file}\""
     ))
     ap.add_argument("--agent-timeout", type=int, default=900, help="seconds an external agent may run")
+    ap.add_argument("--no-patches", action="store_true", help="do not save each attempt's diff")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--repeats", type=int, default=1,
                     help="attempts per task; >1 is required for any claim about a small effect")
