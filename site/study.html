@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Groundhog Leaderboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --plane:        #f9f9f7;
+    --surface:      #fcfcfb;
+    --ink:          #0b0b0b;
+    --ink-2:        #52514e;
+    --ink-muted:    #898781;
+    --grid:         #e1e0d9;
+    --axis:         #c3c2b7;
+    --border:       rgba(11,11,11,0.10);
+    --bar:          #2a78d6;
+    --good:         #0ca30c;
+    --critical:     #d03b3b;
+    --warning:      #fab219;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --plane:      #0d0d0d;
+      --surface:    #1a1a19;
+      --ink:        #ffffff;
+      --ink-2:      #c3c2b7;
+      --ink-muted:  #898781;
+      --grid:       #2c2c2a;
+      --axis:       #383835;
+      --border:     rgba(255,255,255,0.10);
+      --bar:        #3987e5;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --plane: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7;
+    --ink-muted: #898781; --grid: #2c2c2a; --axis: #383835;
+    --border: rgba(255,255,255,0.10); --bar: #3987e5;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 16px 64px;
+    background: var(--plane); color: var(--ink);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+
+  header { padding: 48px 0 8px; }
+  .brand { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  h1 { font-size: 28px; margin: 0; letter-spacing: -0.02em; }
+  .tag { color: var(--ink-muted); font-size: 14px; }
+  .sub { color: var(--ink-2); margin: 10px 0 0; max-width: 62ch; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; }
+
+  .notice {
+    margin: 24px 0 0; padding: 12px 14px; border-radius: 8px;
+    background: color-mix(in srgb, var(--warning) 12%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+    color: var(--ink); font-size: 14px;
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .notice b { font-weight: 650; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 24px 0 0; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .k { color: var(--ink-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .tile .v { font-size: 26px; margin-top: 4px; letter-spacing: -0.02em; }
+  .tile .n { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
+
+  section { margin-top: 40px; }
+  h2 { font-size: 15px; margin: 0 0 14px; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-2); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+
+  /* horizontal bars: one measure, one hue, direct-labelled */
+  .bars { display: grid; gap: 12px; }
+  .bar-row { display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: center; }
+  .bar-name { font-size: 14px; color: var(--ink); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { position: relative; height: 22px; background: var(--grid); border-radius: 4px; }
+  .bar-fill { height: 100%; background: var(--bar); border-radius: 4px; }
+  .bar-val { position: absolute; top: 0; left: 0; height: 22px; display: flex; align-items: center;
+             padding-left: 8px; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .scale { display: flex; justify-content: space-between; color: var(--ink-muted);
+           font-size: 12px; margin-left: 162px; padding-top: 8px; border-top: 1px solid var(--grid); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: right; padding: 9px 10px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; font-variant-numeric: normal; white-space: nowrap; }
+  th { color: var(--ink-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  tbody tr:last-child td { border-bottom: 0; }
+  .win { font-weight: 650; }
+
+  .matrix-scroll { overflow-x: auto; }
+  .matrix { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .matrix th { text-align: center; padding: 8px 6px; }
+  .matrix th:first-child { text-align: left; min-width: 190px; }
+  .matrix td { text-align: center; padding: 7px 6px; border-bottom: 1px solid var(--grid); }
+  .matrix td:first-child { text-align: left; color: var(--ink-2); white-space: nowrap;
+                           overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+  .mark { font-size: 13px; font-weight: 700; }
+  .mark.none { color: var(--ink-muted); font-weight: 400; }
+  .pass { color: var(--good); }
+  .fail { color: var(--critical); }
+  .legend { display: flex; gap: 18px; margin-top: 14px; color: var(--ink-2); font-size: 13px; }
+
+  footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--grid);
+           color: var(--ink-muted); font-size: 13px; }
+  footer a { color: var(--ink-2); }
+  @media (max-width: 560px) {
+    .bar-row { grid-template-columns: 96px 1fr; }
+    .scale { margin-left: 108px; }
+    h1 { font-size: 23px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><h1>Groundhog</h1><span class="tag" id="tag"></span></div>
+    <p class="sub">Every task below was a real commit that changed source and tests together.
+      The tests were kept, the source thrown away. Each model had to write the fix.</p>
+  </header>
+  <div id="root"></div>
+  <footer>
+    Tasks are mined from commits that changed source and tests together, then verified to fail
+    without the original fix and pass with it.
+    &mdash; <a href="https://github.com/abhinavsv3/groundhog">github.com/abhinavsv3/groundhog</a>
+  </footer>
+</div>
+
+<script id="groundhog-data" type="application/json">{"repo": "5 repos, 3 languages", "models": [{"model": "openai:qwen3:8b", "solved": 17, "total": 38, "pass_rate": 0.4473684210526316, "ci_low": 0.3014616531155089, "ci_high": 0.6029397082091058, "cost": null, "cost_per_solve": null, "median_seconds": 412.4, "errors": 4, "silent": 1, "unmeasured": false}, {"model": "openai:qwen2.5-coder:14b", "solved": 8, "total": 22, "pass_rate": 0.36363636363636365, "ci_low": 0.19732972772607899, "ci_high": 0.5704865065628195, "cost": null, "cost_per_solve": null, "median_seconds": 110.6, "errors": 0, "silent": 0, "unmeasured": false}, {"model": "openai:qwen2.5-coder:7b", "solved": 3, "total": 38, "pass_rate": 0.07894736842105263, "ci_low": 0.02721410139426493, "ci_high": 0.2079967892026529, "cost": null, "cost_per_solve": null, "median_seconds": 45.3, "errors": 0, "silent": 1, "unmeasured": false}, {"model": "openai:llama3.1:latest", "solved": 1, "total": 38, "pass_rate": 0.02631578947368421, "ci_low": 0.004660467553530057, "ci_high": 0.13495178436800254, "cost": null, "cost_per_solve": null, "median_seconds": 111.3, "errors": 1, "silent": 1, "unmeasured": false}, {"model": "openai:mistral:latest", "solved": 0, "total": 38, "pass_rate": 0.0, "ci_low": 0.0, "ci_high": 0.09181293258383999, "cost": null, "cost_per_solve": null, "median_seconds": 167.9, "errors": 0, "silent": 34, "unmeasured": true}], "tasks": [{"task_id": "047adef258fc", "subject": "Preserve declaration order of help option names"}, {"task_id": "070b6c0bf674", "subject": "Add flatten()"}, {"task_id": "12be5c44caa7", "subject": "add socks5h proxy support (#3178)"}, {"task_id": "1e8165a07170", "subject": "Add truncate"}, {"task_id": "1f9cd54f686e", "subject": "Close the pager temp file before unlinking it"}, {"task_id": "23a9731b2475", "subject": "Add Truncate"}, {"task_id": "38bcb7c35f4f", "subject": "Add parse_bool()"}, {"task_id": "47f4a96ffaaa", "subject": "Handle empty zstd responses (#3412)"}, {"task_id": "562a635f26f3", "subject": "Add Clamp"}, {"task_id": "5dda2aa30692", "subject": "Just use default `safe=...` characters for `urlescape` (#3376)"}, {"task_id": "6c1a5b9e2fe1", "subject": "Add Dedupe"}, {"task_id": "7120657efa76", "subject": "Add safe_divide()"}, {"task_id": "7c0cda153d30", "subject": "Improve InvalidURL error message. (#3250)"}, {"task_id": "82b51d384251", "subject": "Add human_bytes()"}, {"task_id": "82bafe4b8edc", "subject": "Add titleCase"}, {"task_id": "87eb7a4e9b0c", "subject": "Add count_words()"}, {"task_id": "8955d7363818", "subject": "Add clamp"}, {"task_id": "9fd6f0ca6616", "subject": "Ensure JSON representation is compact. #3363 (#3367)"}, {"task_id": "a41f1d022d30", "subject": "Add dedupe"}, {"task_id": "a6256bfb5971", "subject": "Forwards all user's parameters set in `PAGER`"}, {"task_id": "a652759bec8e", "subject": "Add truncate()"}, {"task_id": "aeadabccfd89", "subject": "Add strip_prefix()"}, {"task_id": "ba2e51215e4e", "subject": "Review urlescape percent-safe set, and use + behavior for form spaces. (#3373)"}, {"task_id": "bc32a92cd2ae", "subject": "Refactor pager stream handling; drop text/binary branching"}, {"task_id": "c2026685102b", "subject": "Add numutil package"}, {"task_id": "c2ed41490baa", "subject": "Deprecate `isolated_filesystem` and document its limits"}, {"task_id": "d293374b6603", "subject": "Review URL percent escaping sets, from whatwg. (#3371)"}, {"task_id": "d76f6054a4d7", "subject": "Add clamp()"}, {"task_id": "e083b837d678", "subject": "Add dedupe()"}, {"task_id": "e2108520fa5a", "subject": "Add Pad"}, {"task_id": "e5c2c8f001af", "subject": "Add slugify()"}, {"task_id": "e9cabc8e1deb", "subject": "made dependencies on certifi and httpcore only load when required (#3377)"}, {"task_id": "edfeba3c22f6", "subject": "Add chunk()"}, {"task_id": "f28ebfd076b9", "subject": "Add title_case()"}, {"task_id": "f316d5cb3aa8", "subject": "Land the progress bar on its final position"}, {"task_id": "f58ca3e81424", "subject": "Fix `copy`, `deepcopy` and `pickle` of `Sentinel` members"}, {"task_id": "fbf78db8a88f", "subject": "Add Reverse"}, {"task_id": "fc518e41218b", "subject": "Fix race condition on `KeyboardInterrupt` arriving in `Command.main()`"}], "results": [{"model": "openai:llama3.1:latest", "task_id": "fc518e41218b", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "f58ca3e81424", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "a6256bfb5971", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "bc32a92cd2ae", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "1f9cd54f686e", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "f316d5cb3aa8", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "047adef258fc", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "c2ed41490baa", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "e2108520fa5a", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "c2026685102b", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "23a9731b2475", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "6c1a5b9e2fe1", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "fbf78db8a88f", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "562a635f26f3", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "47f4a96ffaaa", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "12be5c44caa7", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "e9cabc8e1deb", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "5dda2aa30692", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "ba2e51215e4e", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "d293374b6603", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "9fd6f0ca6616", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "7c0cda153d30", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "82bafe4b8edc", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "1e8165a07170", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "a41f1d022d30", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "8955d7363818", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "f28ebfd076b9", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "82b51d384251", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "87eb7a4e9b0c", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "7120657efa76", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "e5c2c8f001af", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "070b6c0bf674", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "aeadabccfd89", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "38bcb7c35f4f", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "a652759bec8e", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "e083b837d678", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "edfeba3c22f6", "solved": false}, {"model": "openai:llama3.1:latest", "task_id": "d76f6054a4d7", "solved": true}, {"model": "openai:mistral:latest", "task_id": "fc518e41218b", "solved": false}, {"model": "openai:mistral:latest", "task_id": "f58ca3e81424", "solved": false}, {"model": "openai:mistral:latest", "task_id": "a6256bfb5971", "solved": false}, {"model": "openai:mistral:latest", "task_id": "bc32a92cd2ae", "solved": false}, {"model": "openai:mistral:latest", "task_id": "1f9cd54f686e", "solved": false}, {"model": "openai:mistral:latest", "task_id": "f316d5cb3aa8", "solved": false}, {"model": "openai:mistral:latest", "task_id": "047adef258fc", "solved": false}, {"model": "openai:mistral:latest", "task_id": "c2ed41490baa", "solved": false}, {"model": "openai:mistral:latest", "task_id": "e2108520fa5a", "solved": false}, {"model": "openai:mistral:latest", "task_id": "c2026685102b", "solved": false}, {"model": "openai:mistral:latest", "task_id": "23a9731b2475", "solved": false}, {"model": "openai:mistral:latest", "task_id": "6c1a5b9e2fe1", "solved": false}, {"model": "openai:mistral:latest", "task_id": "fbf78db8a88f", "solved": false}, {"model": "openai:mistral:latest", "task_id": "562a635f26f3", "solved": false}, {"model": "openai:mistral:latest", "task_id": "47f4a96ffaaa", "solved": false}, {"model": "openai:mistral:latest", "task_id": "12be5c44caa7", "solved": false}, {"model": "openai:mistral:latest", "task_id": "e9cabc8e1deb", "solved": false}, {"model": "openai:mistral:latest", "task_id": "5dda2aa30692", "solved": false}, {"model": "openai:mistral:latest", "task_id": "ba2e51215e4e", "solved": false}, {"model": "openai:mistral:latest", "task_id": "d293374b6603", "solved": false}, {"model": "openai:mistral:latest", "task_id": "9fd6f0ca6616", "solved": false}, {"model": "openai:mistral:latest", "task_id": "7c0cda153d30", "solved": false}, {"model": "openai:mistral:latest", "task_id": "82bafe4b8edc", "solved": false}, {"model": "openai:mistral:latest", "task_id": "1e8165a07170", "solved": false}, {"model": "openai:mistral:latest", "task_id": "a41f1d022d30", "solved": false}, {"model": "openai:mistral:latest", "task_id": "8955d7363818", "solved": false}, {"model": "openai:mistral:latest", "task_id": "f28ebfd076b9", "solved": false}, {"model": "openai:mistral:latest", "task_id": "82b51d384251", "solved": false}, {"model": "openai:mistral:latest", "task_id": "87eb7a4e9b0c", "solved": false}, {"model": "openai:mistral:latest", "task_id": "7120657efa76", "solved": false}, {"model": "openai:mistral:latest", "task_id": "e5c2c8f001af", "solved": false}, {"model": "openai:mistral:latest", "task_id": "070b6c0bf674", "solved": false}, {"model": "openai:mistral:latest", "task_id": "aeadabccfd89", "solved": false}, {"model": "openai:mistral:latest", "task_id": "38bcb7c35f4f", "solved": false}, {"model": "openai:mistral:latest", "task_id": "a652759bec8e", "solved": false}, {"model": "openai:mistral:latest", "task_id": "e083b837d678", "solved": false}, {"model": "openai:mistral:latest", "task_id": "edfeba3c22f6", "solved": false}, {"model": "openai:mistral:latest", "task_id": "d76f6054a4d7", "solved": false}, {"model": "openai:qwen2.5-coder:14b", "task_id": "e2108520fa5a", "solved": false}, {"model": "openai:qwen2.5-coder:14b", "task_id": "c2026685102b", "solved": true}, {"model": "openai:qwen2.5-coder:14b", "task_id": "23a9731b2475", "solved": true}, {"model": "openai:qwen2.5-coder:14b", "task_id": "6c1a5b9e2fe1", "solved": false}, {"model": "openai:qwen2.5-coder:14b", "task_id": "fbf78db8a88f", "solved": true}, {"model": "openai:qwen2.5-coder:14b", "task_id": "562a635f26f3", "solved": true}, {"model": "openai:qwen2.5-coder:14b", "task_id": "82bafe4b8edc", "solved": true}, {"model": "openai:qwen2.5-coder:14b", "task_id": "1e8165a07170", "solved": false}, {"model": "openai:qwen2.5-coder:14b", "task_id": "a41f1d022d30", "solved": true}, {"model": "openai:qwen2.5-coder:14b", "task_id": "8955d7363818", "solved": true}, {"model": "openai:qwen2.5-coder:14b", "task_id": "f28ebfd076b9", "solved": false}, {"model": "openai:qwen2.5-coder:14b", "task_id": "82b51d384251", "solved": false}, {"model": "openai:qwen2.5-coder:14b", "task_id": "87eb7a4e9b0c", "solved": false}, {"model": "openai:qwen2.5-coder:14b", "task_id": "7120657efa76", "solved": false}, {"model": "openai:qwen2.5-coder:14b", "task_id": "e5c2c8f001af", "solved": false}, {"model": "openai:qwen2.5-coder:14b", "task_id": "070b6c0bf674", "solved": false}, {"model": "openai:qwen2.5-coder:14b", "task_id": "aeadabccfd89", "solved": false}, {"model": "openai:qwen2.5-coder:14b", "task_id": "38bcb7c35f4f", "solved": false}, {"model": "openai:qwen2.5-coder:14b", "task_id": "a652759bec8e", "solved": false}, {"model": "openai:qwen2.5-coder:14b", "task_id": "e083b837d678", "solved": false}, {"model": "openai:qwen2.5-coder:14b", "task_id": "edfeba3c22f6", "solved": false}, {"model": "openai:qwen2.5-coder:14b", "task_id": "d76f6054a4d7", "solved": true}, {"model": "openai:qwen2.5-coder:7b", "task_id": "fc518e41218b", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "f58ca3e81424", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "a6256bfb5971", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "bc32a92cd2ae", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "1f9cd54f686e", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "f316d5cb3aa8", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "047adef258fc", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "c2ed41490baa", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "e2108520fa5a", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "c2026685102b", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "23a9731b2475", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "6c1a5b9e2fe1", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "fbf78db8a88f", "solved": true}, {"model": "openai:qwen2.5-coder:7b", "task_id": "562a635f26f3", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "47f4a96ffaaa", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "12be5c44caa7", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "e9cabc8e1deb", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "5dda2aa30692", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "ba2e51215e4e", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "d293374b6603", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "9fd6f0ca6616", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "7c0cda153d30", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "82bafe4b8edc", "solved": true}, {"model": "openai:qwen2.5-coder:7b", "task_id": "1e8165a07170", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "a41f1d022d30", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "8955d7363818", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "f28ebfd076b9", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "82b51d384251", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "87eb7a4e9b0c", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "7120657efa76", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "e5c2c8f001af", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "070b6c0bf674", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "aeadabccfd89", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "38bcb7c35f4f", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "a652759bec8e", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "e083b837d678", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "edfeba3c22f6", "solved": false}, {"model": "openai:qwen2.5-coder:7b", "task_id": "d76f6054a4d7", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "fc518e41218b", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "f58ca3e81424", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "a6256bfb5971", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "bc32a92cd2ae", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "1f9cd54f686e", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "f316d5cb3aa8", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "047adef258fc", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "c2ed41490baa", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "e2108520fa5a", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "c2026685102b", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "23a9731b2475", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "6c1a5b9e2fe1", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "fbf78db8a88f", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "562a635f26f3", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "47f4a96ffaaa", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "12be5c44caa7", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "e9cabc8e1deb", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "5dda2aa30692", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "ba2e51215e4e", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "d293374b6603", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "9fd6f0ca6616", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "7c0cda153d30", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "82bafe4b8edc", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "1e8165a07170", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "a41f1d022d30", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "8955d7363818", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "f28ebfd076b9", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "82b51d384251", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "87eb7a4e9b0c", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "7120657efa76", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "e5c2c8f001af", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "070b6c0bf674", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "aeadabccfd89", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "38bcb7c35f4f", "solved": false}, {"model": "openai:qwen3:8b", "task_id": "a652759bec8e", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "e083b837d678", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "edfeba3c22f6", "solved": true}, {"model": "openai:qwen3:8b", "task_id": "d76f6054a4d7", "solved": true}]}</script>
+<script>
+(function () {
+  var raw = document.getElementById("groundhog-data").textContent;
+  var data;
+  try { data = JSON.parse(raw); } catch (e) { data = null; }
+  var root = document.getElementById("root");
+
+  if (!data || !data.models || !data.models.length) {
+    root.innerHTML = '<div class="notice"><span>&#9888;</span><span><b>No results yet.</b> ' +
+      'Run <code>groundhog run</code> and then <code>groundhog report --site</code> ' +
+      'to fill this page.</span></div>';
+    return;
+  }
+
+  var esc = function (s) { return String(s).replace(/[&<>]/g, function (c) {
+    return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]; }); };
+  var money = function (v) { return v === null || v === undefined ? "&ndash;" : "$" + v.toFixed(2); };
+  var short = function (m) {
+    var s = m.replace(/^[a-z0-9_-]+:(?=[^:]*:)/, "");   // drop a provider prefix
+    return s.replace(/:latest$/, "");                    // ":latest" says nothing
+  };
+
+  document.getElementById("tag").textContent =
+    data.repo + " \u00b7 " + data.tasks.length + " tasks";
+
+  var ranked = data.models.filter(function (m) { return !m.unmeasured; });
+  var best = ranked[0] || data.models[0];
+  var totalCost = data.models.reduce(function (a, m) { return a + (m.cost || 0); }, 0);
+  var html = '<div class="tiles">' +
+    tile("Tasks", data.tasks.length, "fail-to-pass verified") +
+    tile("Models", ranked.length, ranked.length === data.models.length
+         ? "one attempt each" : (data.models.length - ranked.length) + " not measured") +
+    tile("Best", Math.round(best.pass_rate * 100) + "%", esc(short(best.model))) +
+    tile("Total cost", "$" + totalCost.toFixed(2), "across every attempt") +
+    "</div>";
+
+  function tile(k, v, n) {
+    return '<div class="tile"><div class="k">' + k + '</div><div class="v">' + v +
+           '</div><div class="n">' + n + "</div></div>";
+  }
+
+  // A model that mostly never called a tool was not measured. Drawing a bar at
+  // 0% would publish the harness's failure to read it as the model's score.
+  var lost = data.models.filter(function (m) { return m.unmeasured; });
+  if (lost.length) {
+    html += '<div class="notice"><strong>' +
+      lost.map(function (m) {
+        return esc(short(m.model)) + " parsed no tool call in " + m.silent +
+               " of " + m.total + " attempts.";
+      }).join(" ") +
+      "</strong> That is a failed measurement, not a low score \u2014 the model " +
+      "may be emitting usable work in a format this harness cannot read. " +
+      (lost.length > 1 ? "Those rows are" : "That row is") +
+      " excluded from the ranking below.</div>";
+  }
+
+  html += '<section><h2>Pass rate</h2><div class="card"><div class="bars">';
+  data.models.forEach(function (m) {
+    if (m.unmeasured) {
+      html += '<div class="bar-row"><div class="bar-name">' + esc(short(m.model)) + "</div>" +
+        '<div class="bar-track"><div class="bar-val">not measured &middot; ' + m.silent +
+        " / " + m.total + " attempts made no tool call</div></div></div>";
+      return;
+    }
+    var pct = m.pass_rate * 100;
+    html += '<div class="bar-row"><div class="bar-name">' + esc(short(m.model)) + "</div>" +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + pct.toFixed(1) + '%"></div>' +
+      '<div class="bar-val">' + m.solved + " / " + m.total + " &middot; " + pct.toFixed(0) +
+      "%</div></div></div>";
+  });
+  html += '</div><div class="scale"><span>0%</span><span>50%</span><span>100%</span></div></div></section>';
+
+  html += '<section><h2>Detail</h2><div class="card"><table><thead><tr>' +
+    "<th>Model</th><th>Solved</th><th>Pass rate</th><th>Cost</th>" +
+    "<th>Cost / solve</th><th>Median time</th></tr></thead><tbody>";
+  data.models.forEach(function (m, i) {
+    var w = i === 0 && !m.unmeasured ? ' class="win"' : "";
+    var rate = m.unmeasured ? "not measured" : (m.pass_rate * 100).toFixed(0) + "%";
+    html += "<tr><td" + w + ">" + esc(short(m.model)) + "</td><td>" + m.solved + " / " + m.total +
+      "</td><td" + w + ">" + rate + "</td><td>" + money(m.cost) +
+      "</td><td>" + money(m.cost_per_solve) + "</td><td>" +
+      Math.round(m.median_seconds) + "s</td></tr>";
+  });
+  html += "</tbody></table></div></section>";
+
+  var byKey = {};
+  data.results.forEach(function (r) { byKey[r.model + "|" + r.task_id] = r.solved; });
+
+  html += '<section><h2>Per-task results</h2><div class="card"><div class="matrix-scroll">' +
+    '<table class="matrix"><thead><tr><th>Task</th>';
+  data.models.forEach(function (m) { html += "<th>" + esc(short(m.model)) + "</th>"; });
+  html += "</tr></thead><tbody>";
+  data.tasks.forEach(function (t) {
+    html += "<tr><td>" + esc(t.subject) + "</td>";
+    data.models.forEach(function (m) {
+      var ok = byKey[m.model + "|" + t.task_id];
+      var cell;
+      if (m.unmeasured) {
+        // Not "fail" -- the harness could not read this model's output at all.
+        cell = '<span class="mark none" title="not measured">&mdash;</span>';
+      } else if (ok === undefined) {
+        // Not every model ran every repository; an absent attempt is not a loss.
+        cell = '<span class="mark none" title="not attempted">&mdash;</span>';
+      } else {
+        cell = ok
+          ? '<span class="mark pass">&#10003; pass</span>'
+          : '<span class="mark fail">&#10007; fail</span>';
+      }
+      html += "<td>" + cell + "</td>";
+    });
+    html += "</tr>";
+  });
+  html += '</tbody></table></div><div class="legend">' +
+    '<span><span class="mark pass">&#10003;</span> tests passed</span>' +
+    '<span><span class="mark fail">&#10007;</span> tests failed</span>' +
+    '<span><span class="mark none">&mdash;</span> not attempted, or not measured</span>' +
+    "</div></div></section>";
+
+  root.innerHTML = html;
+})();
+</script>
+</body>
+</html>

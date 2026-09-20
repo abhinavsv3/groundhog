@@ -12,10 +12,11 @@ from groundhog import report  # noqa: E402
 from groundhog.models import Usage, price_of  # noqa: E402
 
 
-def attempt(model, task_id, solved, cost=0.1, seconds=10.0):
+def attempt(model, task_id, solved, cost=0.1, seconds=10.0, calls=3):
     return {
         "model": model, "task_id": task_id, "subject": f"task {task_id}",
         "solved": solved, "cost_usd": cost, "seconds": seconds, "error": "",
+        "tools": {"calls": calls},
     }
 
 
@@ -98,3 +99,78 @@ class TestTextToolCalls:
     def test_ignores_malformed_json(self):
         from groundhog.models import parse_text_tool_calls
         assert parse_text_tool_calls('{"name": "read_file", "arguments": {', self.KNOWN) == []
+
+
+class TestUnmeasuredModels:
+    """A model whose output the harness could not read has no score.
+
+    See study/mistral-artifact.md: mistral emitted correct fixes as markdown
+    code fences rather than tool calls, so every call was discarded and the run
+    recorded a clean-looking 0% with no errors. A percentage there states the
+    parser's failure as the model's capability.
+    """
+
+    def silent_run(self, model, n=10, silent=9):
+        return [attempt(model, f"t{i}", False, calls=0 if i < silent else 2)
+                for i in range(n)]
+
+    def test_mostly_silent_run_is_flagged(self):
+        rows = report.summarise(self.silent_run("quiet"))
+        assert rows[0]["unmeasured"] is True
+        assert rows[0]["silent"] == 9
+
+    def test_a_model_that_called_tools_and_failed_is_not_flagged(self):
+        rows = report.summarise([attempt("tries", f"t{i}", False) for i in range(10)])
+        assert rows[0]["unmeasured"] is False
+        assert rows[0]["pass_rate"] == 0.0
+
+    def test_unmeasured_never_outranks_a_measured_model(self):
+        rows = report.summarise(
+            self.silent_run("quiet")
+            + [attempt("works", f"t{i}", False) for i in range(10)]
+        )
+        assert [r["model"] for r in rows] == ["works", "quiet"]
+
+    def test_table_refuses_the_number_and_says_why(self, capsys):
+        records = self.silent_run("quiet")
+        report.print_table(report.summarise(records), records)
+        out = capsys.readouterr().out
+        assert "not measured" in out
+        assert "9 of 10 attempts parsed no tool call" in out
+        # The model's own row must carry no percentage at all.
+        row = next(l for l in out.splitlines() if l.startswith("\033[2mquiet"))
+        assert "%" not in row
+
+    def test_unmeasured_tasks_are_not_marked_as_failures(self, capsys):
+        records = self.silent_run("quiet")
+        report.print_table(report.summarise(records), records)
+        grid = capsys.readouterr().out.split("PER TASK")[1]
+        assert "fail" not in grid
+
+    def test_a_task_a_model_never_ran_is_not_a_failure(self, capsys):
+        records = ([attempt("a", "t1", True), attempt("a", "t2", False)]
+                   + [attempt("b", "t1", True)])
+        report.print_table(report.summarise(records), records)
+        grid = capsys.readouterr().out.split("PER TASK")[1]
+        assert grid.count("fail") == 1
+
+    def test_same_family_columns_stay_distinguishable(self):
+        a = report.fit(report.label("openai:qwen2.5-coder:7b"), 12)
+        b = report.fit(report.label("openai:qwen2.5-coder:14b"), 12)
+        assert a != b
+        assert a.endswith("7b") and b.endswith("14b")
+
+    def test_latest_models_get_distinct_labels(self):
+        assert report.label("openai:mistral:latest") == "mistral"
+        assert report.label("openai:llama3.1:latest") == "llama3.1"
+        assert report.label("openai:qwen3:8b") == "qwen3:8b"
+
+    def test_page_payload_carries_the_flag(self, tmp_path):
+        records = self.silent_run("quiet")
+        template = tmp_path / "t.html"
+        template.write_text("var data = __DATA__;")
+        out = tmp_path / "page.html"
+        report.write_site(report.summarise(records), records, "repo", out, template)
+        payload = json.loads(out.read_text()[len("var data = "):-1])
+        assert payload["models"][0]["unmeasured"] is True
+        assert payload["models"][0]["silent"] == 9

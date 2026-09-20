@@ -103,6 +103,7 @@
   .matrix td:first-child { text-align: left; color: var(--ink-2); white-space: nowrap;
                            overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
   .mark { font-size: 13px; font-weight: 700; }
+  .mark.none { color: var(--ink-muted); font-weight: 400; }
   .pass { color: var(--good); }
   .fail { color: var(--critical); }
   .legend { display: flex; gap: 18px; margin-top: 14px; color: var(--ink-2); font-size: 13px; }
@@ -150,16 +151,21 @@
   var esc = function (s) { return String(s).replace(/[&<>]/g, function (c) {
     return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]; }); };
   var money = function (v) { return v === null || v === undefined ? "&ndash;" : "$" + v.toFixed(2); };
-  var short = function (m) { var p = m.split(":"); return p[p.length - 1]; };
+  var short = function (m) {
+    var s = m.replace(/^[a-z0-9_-]+:(?=[^:]*:)/, "");   // drop a provider prefix
+    return s.replace(/:latest$/, "");                    // ":latest" says nothing
+  };
 
   document.getElementById("tag").textContent =
     data.repo + " \u00b7 " + data.tasks.length + " tasks";
 
-  var best = data.models[0];
+  var ranked = data.models.filter(function (m) { return !m.unmeasured; });
+  var best = ranked[0] || data.models[0];
   var totalCost = data.models.reduce(function (a, m) { return a + (m.cost || 0); }, 0);
   var html = '<div class="tiles">' +
     tile("Tasks", data.tasks.length, "fail-to-pass verified") +
-    tile("Models", data.models.length, "one attempt each") +
+    tile("Models", ranked.length, ranked.length === data.models.length
+         ? "one attempt each" : (data.models.length - ranked.length) + " not measured") +
     tile("Best", Math.round(best.pass_rate * 100) + "%", esc(short(best.model))) +
     tile("Total cost", "$" + totalCost.toFixed(2), "across every attempt") +
     "</div>";
@@ -169,8 +175,29 @@
            '</div><div class="n">' + n + "</div></div>";
   }
 
+  // A model that mostly never called a tool was not measured. Drawing a bar at
+  // 0% would publish the harness's failure to read it as the model's score.
+  var lost = data.models.filter(function (m) { return m.unmeasured; });
+  if (lost.length) {
+    html += '<div class="notice"><strong>' +
+      lost.map(function (m) {
+        return esc(short(m.model)) + " parsed no tool call in " + m.silent +
+               " of " + m.total + " attempts.";
+      }).join(" ") +
+      "</strong> That is a failed measurement, not a low score \u2014 the model " +
+      "may be emitting usable work in a format this harness cannot read. " +
+      (lost.length > 1 ? "Those rows are" : "That row is") +
+      " excluded from the ranking below.</div>";
+  }
+
   html += '<section><h2>Pass rate</h2><div class="card"><div class="bars">';
   data.models.forEach(function (m) {
+    if (m.unmeasured) {
+      html += '<div class="bar-row"><div class="bar-name">' + esc(short(m.model)) + "</div>" +
+        '<div class="bar-track"><div class="bar-val">not measured &middot; ' + m.silent +
+        " / " + m.total + " attempts made no tool call</div></div></div>";
+      return;
+    }
     var pct = m.pass_rate * 100;
     html += '<div class="bar-row"><div class="bar-name">' + esc(short(m.model)) + "</div>" +
       '<div class="bar-track"><div class="bar-fill" style="width:' + pct.toFixed(1) + '%"></div>' +
@@ -183,9 +210,10 @@
     "<th>Model</th><th>Solved</th><th>Pass rate</th><th>Cost</th>" +
     "<th>Cost / solve</th><th>Median time</th></tr></thead><tbody>";
   data.models.forEach(function (m, i) {
-    var w = i === 0 ? ' class="win"' : "";
+    var w = i === 0 && !m.unmeasured ? ' class="win"' : "";
+    var rate = m.unmeasured ? "not measured" : (m.pass_rate * 100).toFixed(0) + "%";
     html += "<tr><td" + w + ">" + esc(short(m.model)) + "</td><td>" + m.solved + " / " + m.total +
-      "</td><td" + w + ">" + (m.pass_rate * 100).toFixed(0) + "%</td><td>" + money(m.cost) +
+      "</td><td" + w + ">" + rate + "</td><td>" + money(m.cost) +
       "</td><td>" + money(m.cost_per_solve) + "</td><td>" +
       Math.round(m.median_seconds) + "s</td></tr>";
   });
@@ -202,15 +230,27 @@
     html += "<tr><td>" + esc(t.subject) + "</td>";
     data.models.forEach(function (m) {
       var ok = byKey[m.model + "|" + t.task_id];
-      html += "<td>" + (ok
-        ? '<span class="mark pass">&#10003; pass</span>'
-        : '<span class="mark fail">&#10007; fail</span>') + "</td>";
+      var cell;
+      if (m.unmeasured) {
+        // Not "fail" -- the harness could not read this model's output at all.
+        cell = '<span class="mark none" title="not measured">&mdash;</span>';
+      } else if (ok === undefined) {
+        // Not every model ran every repository; an absent attempt is not a loss.
+        cell = '<span class="mark none" title="not attempted">&mdash;</span>';
+      } else {
+        cell = ok
+          ? '<span class="mark pass">&#10003; pass</span>'
+          : '<span class="mark fail">&#10007; fail</span>';
+      }
+      html += "<td>" + cell + "</td>";
     });
     html += "</tr>";
   });
   html += '</tbody></table></div><div class="legend">' +
     '<span><span class="mark pass">&#10003;</span> tests passed</span>' +
-    '<span><span class="mark fail">&#10007;</span> tests failed</span></div></div></section>';
+    '<span><span class="mark fail">&#10007;</span> tests failed</span>' +
+    '<span><span class="mark none">&mdash;</span> not attempted, or not measured</span>' +
+    "</div></div></section>";
 
   root.innerHTML = html;
 })();
