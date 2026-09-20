@@ -1,0 +1,69 @@
+diff --git a/toolbox/text.py b/toolbox/text.py
+index c8d8980..9a68e44 100644
+--- a/toolbox/text.py
++++ b/toolbox/text.py
+@@ -1,62 +1,2 @@
+-"""Small text helpers."""
+-
+-
+-def clamp(value, low, high):
+-    """Constrain value to the range [low, high]."""
+-    return max(low, min(value, high))
+-
+-
+-def chunk(items, size):
+-    """Split items into consecutive lists of at most size."""
+-    return [items[i : i + size] for i in range(0, len(items), size)]
+-
+-
+-def dedupe(items):
+-    """Remove duplicates, preserving first-seen order."""
+-    seen, out = set(), []
+-    for item in items:
+-        if item not in seen:
+-            seen.add(item)
+-            out.append(item)
+-    return out
+-
+-
+-def truncate(value, length, suffix="..."):
+-    """Shorten value to length characters, ending with suffix."""
+-    if len(value) <= length:
+-        return value
+-    return value[: length - len(suffix)] + suffix
+-
+-
+-def parse_bool(value):
+-    """Parse a human-written boolean. Raises ValueError if unrecognised."""
+-    lowered = value.strip().lower()
+-    if lowered in ("true", "yes", "1", "on"):
+-        return True
+-    if lowered in ("false", "no", "0", "off"):
+-        return False
+-    raise ValueError(f"not a boolean: {value!r}")
+-
+-
+-def strip_prefix(value, prefix):
+-    """Remove prefix from value if present."""
+-    return value[len(prefix) :] if value.startswith(prefix) else value
+-
+-
+-def flatten(nested):
+-    """Flatten one level of nesting."""
+-    return [item for group in nested for item in group]
+-
+-
+-def slugify(value):
+-    """Lowercase, replace runs of non-alphanumerics with single hyphens."""
+-    import re
+-
+-    return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+-
+-
+-def safe_divide(numerator, denominator, default=0.0):
+-    """Divide, returning default when the denominator is zero."""
+-    if denominator == 0:
+-        return default
+-    return numerator / denominator
++def count_words(text):
++    return len(text.split())

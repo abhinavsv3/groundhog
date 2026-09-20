@@ -1,0 +1,19 @@
+commit 87eb7a4e9b0c0f6d3ca5d59ba3c8101eedded53c
+Author: Dev <dev@example.com>
+Date:   Fri Sep 18 02:49:39 2026 -0700
+
+    Add count_words()
+
+diff --git a/toolbox/text.py b/toolbox/text.py
+index c8d8980..5500551 100644
+--- a/toolbox/text.py
++++ b/toolbox/text.py
+@@ -60,3 +60,8 @@ def safe_divide(numerator, denominator, default=0.0):
+     if denominator == 0:
+         return default
+     return numerator / denominator
++
++
++def count_words(value):
++    """Count whitespace-separated words."""
++    return len(value.split())

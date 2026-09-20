@@ -1,0 +1,19 @@
+commit aeadabccfd8903e14f0ae7690620920f7da08c05
+Author: Dev <dev@example.com>
+Date:   Fri Sep 18 02:49:39 2026 -0700
+
+    Add strip_prefix()
+
+diff --git a/toolbox/text.py b/toolbox/text.py
+index 9cb4a16..d3e0842 100644
+--- a/toolbox/text.py
++++ b/toolbox/text.py
+@@ -36,3 +36,8 @@ def parse_bool(value):
+     if lowered in ("false", "no", "0", "off"):
+         return False
+     raise ValueError(f"not a boolean: {value!r}")
++
++
++def strip_prefix(value, prefix):
++    """Remove prefix from value if present."""
++    return value[len(prefix) :] if value.startswith(prefix) else value

@@ -1,0 +1,15 @@
+diff --git a/toolbox/text.py b/toolbox/text.py
+index 72559fc..22b667c 100644
+--- a/toolbox/text.py
++++ b/toolbox/text.py
+@@ -1,6 +1,5 @@
+-"""Small text helpers."""
++from typing import List
+ 
+ 
+-def clamp(value, low, high):
+-    """Constrain value to the range [low, high]."""
+-    return max(low, min(value, high))
++def chunk(lst: List[int], n: int) -> List[List[int]]:
++    return [lst[i:i+n] for i in range(0, len(lst), n)]
+\ No newline at end of file

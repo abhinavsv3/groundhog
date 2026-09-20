@@ -1,0 +1,9 @@
+1 models x 8 tasks x 1 repeats = 8 attempts
+resuming: 0 already recorded, 8 to run
+
+openai:qwen3:8b                  [1/8] Fix race condition on `KeyboardInt                 fail   419.3s  
+openai:qwen3:8b                  [2/8] Fix `copy`, `deepcopy` and `pickle                 fail  1754.3s  
+openai:qwen3:8b                  [3/8] Forwards all user's parameters set                 fail   848.1s  
+openai:qwen3:8b                  [4/8] Refactor pager stream handling; dr                 fail   820.1s  
+openai:qwen3:8b                  [5/8] Close the pager temp file before u                 ERROR 1811.3s  timed out
+openai:qwen3:8b                  [6/8] Land the progress bar on its final               

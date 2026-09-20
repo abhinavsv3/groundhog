@@ -1,0 +1,14 @@
+1 models x 8 tasks x 1 repeats = 8 attempts
+resuming: 0 already recorded, 8 to run
+
+openai:qwen2.5-coder:7b          [1/8] Fix race condition on `KeyboardInt                 fail    19.3s  
+openai:qwen2.5-coder:7b          [2/8] Fix `copy`, `deepcopy` and `pickle                 fail    29.2s  
+openai:qwen2.5-coder:7b          [3/8] Forwards all user's parameters set                 fail   138.7s  
+openai:qwen2.5-coder:7b          [4/8] Refactor pager stream handling; dr                 fail   108.8s  
+openai:qwen2.5-coder:7b          [5/8] Close the pager temp file before u                 fail    77.1s  
+openai:qwen2.5-coder:7b          [6/8] Land the progress bar on its final                 fail   114.1s  
+openai:qwen2.5-coder:7b          [7/8] Preserve declaration order of help                 fail    37.7s  
+openai:qwen2.5-coder:7b          [8/8] Deprecate `isolated_filesystem` an                 fail    38.6s  
+                                 -> 0/8
+
+8 attempts -> results/main-openai-qwen2.5-coder-7b-click.jsonl

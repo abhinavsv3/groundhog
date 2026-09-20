@@ -1,0 +1,18 @@
+1 models x 12 tasks x 1 repeats = 12 attempts
+resuming: 0 already recorded, 12 to run
+
+openai:qwen3:8b                  [1/12] Add title_case()                                  PASS   388.5s  
+openai:qwen3:8b                  [2/12] Add human_bytes()                                 PASS   385.7s  
+openai:qwen3:8b                  [3/12] Add count_words()                                 fail   396.9s  
+openai:qwen3:8b                  [4/12] Add safe_divide()                                 PASS   401.5s  
+openai:qwen3:8b                  [5/12] Add slugify()                                     fail  1102.0s  
+openai:qwen3:8b                  [6/12] Add flatten()                                     PASS   106.1s  
+openai:qwen3:8b                  [7/12] Add strip_prefix()                                PASS    74.8s  
+openai:qwen3:8b                  [8/12] Add parse_bool()                                  ERROR 1170.0s  timed out
+openai:qwen3:8b                  [9/12] Add truncate()                                    PASS   391.6s  
+openai:qwen3:8b                  [10/12] Add dedupe()                                     PASS   168.5s  
+openai:qwen3:8b                  [11/12] Add chunk()                                      PASS    93.6s  
+openai:qwen3:8b                  [12/12] Add clamp()                                      PASS    51.2s  
+                                 -> 9/12
+
+12 attempts -> results/main-openai-qwen3-8b-toolbox.jsonl

@@ -1,0 +1,19 @@
+commit edfeba3c22f61e483c6b2a942ab53cc8ec324dca
+Author: Dev <dev@example.com>
+Date:   Fri Sep 18 02:49:39 2026 -0700
+
+    Add chunk()
+
+diff --git a/toolbox/text.py b/toolbox/text.py
+index 72559fc..3c19d5d 100644
+--- a/toolbox/text.py
++++ b/toolbox/text.py
+@@ -4,3 +4,8 @@
+ def clamp(value, low, high):
+     """Constrain value to the range [low, high]."""
+     return max(low, min(value, high))
++
++
++def chunk(items, size):
++    """Split items into consecutive lists of at most size."""
++    return [items[i : i + size] for i in range(0, len(items), size)]
