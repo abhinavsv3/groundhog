@@ -35,16 +35,35 @@ $ python -m groundhog validate ~/src/httpx
 10/15 became real tasks                                                   24s
 ```
 
-The run step produces a table like this. **No frontier-model run has been
-published for this repo yet** — the shape below is illustrative, not a result,
-and the numbers are deliberately left unfilled rather than invented:
+The run step produces a table like this. These are real numbers, from 174
+attempts across five local models and five repositories in three languages, all
+on one laptop for **$0** — the full study is in [`study/REPORT.md`](study/REPORT.md):
 
 ```
-MODEL                    SOLVED    RATE        95% CI      COST   MEDIAN
-------------------------------------------------------------------------
-<model-a>                   ?/10      ?%        ? – ?         $?       ?s
-<model-b>                   ?/10      ?%        ? – ?         $?       ?s
+MODEL                       SOLVED   RATE         95% CI      COST   PER SOLVE   MEDIAN
+---------------------------------------------------------------------------------------
+openai:qwen3:8b              17/38    45%      30% – 60%         -           -     412s
+openai:qwen2.5-coder:14b      8/22    36%      20% – 57%         -           -     111s
+openai:qwen2.5-coder:7b       3/38     8%       3% – 21%         -           -      45s
+openai:llama3.1:latest        1/38     3%       0% – 13%         -           -     111s
+openai:mistral:latest         0/38          not measured         —           —     168s
+
+  openai:mistral:latest: 34 of 38 attempts parsed no tool call at all.
+  That is a failed measurement, not a 0% score -- the model may be emitting perfectly
+  good work in a format this harness cannot read. Check with:
+      python3 scripts/probe_model_format.py openai:mistral:latest
+  Exclude it, or widen the parser, before reporting anything about this model.
+
+  The top two intervals overlap — this ordering is not a result. Separating them
+  would need roughly 538 tasks (you have 38), or use `groundhog compare`
+  for a paired test, which needs far fewer.
 ```
+
+That last model is the point. `mistral` writes correct fixes and emits them as
+markdown code fences instead of tool calls, so every one was discarded and the
+run recorded a clean-looking 0% with no errors. Most harnesses would have
+published it. Groundhog refuses the number and tells you how to check
+([the write-up](study/mistral-artifact.md)).
 
 Every rate carries a Wilson interval, because on a task set this size a gap of
 ten points usually is not one: 6/10 and 5/10 render as 60% and 50% while their
@@ -210,6 +229,8 @@ Early, but working end to end.
 - [x] `--resume` for interrupted runs, and each attempt's diff saved
 - [x] `--max-spend` ceiling, and a pass-rate breakdown by change shape
 - [x] Regression tracking (`groundhog compare`) and a CI workflow
+- [x] A [pre-registered study](study/REPORT.md) of 174 attempts, reporting the
+      two things that failed as prominently as the things that worked
 
 ## Contributing
 
