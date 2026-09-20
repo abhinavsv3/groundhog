@@ -1,0 +1,12 @@
+validating 7 candidates
+
+[1/7] ac3efd562079 ✨ Make `epilog` formatting consistent with other     VALID   F2P=2   P2P=28   (4.7s -> 4.6s)
+[2/7] 0c15b1b239a2 🐛 Make second column of Rich help output reflect     VALID   F2P=3   P2P=25   (3.2s -> 3.1s)
+[3/7] 8e75bc3565d5 🐛 Respect wait=False when launching URLs with xd     VALID   F2P=1   P2P=7    (0.3s -> 0.2s)
+[4/7] 06fce7dc851d 🐛 Ensure that the default of a list argument is      VALID   F2P=1   P2P=8    (0.3s -> 0.3s)
+[5/7] 90f087ac310e 👷 Add CI to create draft release after merging a     VALID   F2P=16  P2P=0    (0.3s -> 0.2s)
+[6/7] e8552b7d9360 👷 Add GitHub Actions prepare release workflow (#     REJECTED  tests already pass without the fix
+[7/7] 5568bab22f9d 🐛 Ensure that an envvar set for a `typer.Option`     VALID   F2P=1   P2P=23   (2.3s -> 2.2s)
+
+6/7 became real tasks in 24s -> tasks/typer-validated.jsonl
+task set 4d4461df398bfe35  (2026-05-27 .. 2026-08-03)

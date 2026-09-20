@@ -1,0 +1,36 @@
+building environment for marshmallow -> /Users/abhinav/.cache/groundhog/marshmallow-1367e044719978bf
+  note: resolved 2 deps from [dependency-groups]
+  $ uv pip install -e .
+  $ uv pip install pytest simplejson
+  $ uv pip install pytest
+  ready: /Users/abhinav/.cache/groundhog/marshmallow-1367e044719978bf
+validating 25 candidates
+
+[1/25] 7dff08fcb7fb Raise ValidationError (not ValueError) for NaN i    VALID   F2P=1   P2P=381  (1.2s -> 0.5s)
+[2/25] ec2178c26b1a Improve the allow_none default for by_value enum    VALID   F2P=1   P2P=378  (0.7s -> 0.4s)
+[3/25] 256f0aabbc18 Add pre/post_load parameters to Field (#2799)       VALID   F2P=11  P2P=92   (0.3s -> 0.3s)
+[4/25] f07eadc87dfa Fix validate.Email to accept IDNs (#2937)           VALID   F2P=2   P2P=205  (0.4s -> 0.4s)
+[5/25] c1e727e16bed Add support for IDNs to validate.URL (#2928)        VALID   F2P=6   P2P=191  (0.4s -> 0.4s)
+[6/25] 3bc191ab3c8c Fix Field.error_messages type to allow dict and     REJECTED  tests already pass without the fix
+[7/25] 024b5d09e9f0 Fix Enum field by-name lookup to only return act    VALID   F2P=3   P2P=368  (0.6s -> 0.4s)
+[8/25] 65374df0c31c Fix OneOf.options() emitting phantom entries whe    VALID   F2P=1   P2P=188  (0.4s -> 0.3s)
+[9/25] 070dde08bad4 Fix Constant field with required=True raising Va    VALID   F2P=1   P2P=366  (0.6s -> 0.4s)
+[10/25] fea542856796 Make Number and Mapping abstract base classes (#   VALID   F2P=2   P2P=212  (0.5s -> 0.3s)
+[11/25] 19ca8dce2d5b Fix Constant field rejecting None values during    VALID   F2P=1   P2P=365  (0.6s -> 0.4s)
+[12/25] 2bf3ae6ac656 feat: improve consistency of many arg with neste   VALID   F2P=2   P2P=201  (0.5s -> 0.3s)
+[13/25] 2b84b56e9a80 (fix) missing constant with len validation (#286   VALID   F2P=1   P2P=364  (0.6s -> 0.4s)
+[14/25] 22288b645322 Fix ruff issues                                    REJECTED  tests already pass without the fix
+[15/25] 0c1dd99d9f97 Update pre-commit deps (#2840)                     REJECTED  tests already pass without the fix
+[16/25] 2fc8207da9cf @validates accepts multiple field names (#1965)    VALID   F2P=1   P2P=256  (0.6s -> 0.4s)
+[17/25] c83679506045 Fix types for class Meta options (#2806)           REJECTED  tests still fail with the real fix (environm
+[18/25] 9cddff67b733 load accepts Sequence rather than Iterable (reje   REJECTED  tests already pass without the fix
+[19/25] 76bc28ae74e7 fix: add `file` handling to URL fields (#2800)     VALID   F2P=5   P2P=175  (0.4s -> 0.3s)
+[20/25] 94234acd1a98 Handle post_load methods that append to data (#2   VALID   F2P=1   P2P=37   (0.3s -> 0.2s)
+[21/25] 9f751e1cef94 Fix handling data_key in ValidationErrors raised   VALID   F2P=1   P2P=36   (0.3s -> 0.2s)
+[22/25] 01fab376b36b Follow pep8 for TypeVar naming; fix typing for C   REJECTED  tests already pass without the fix
+[23/25] de5e842aeaf7 Check for fields declared as instances at class    VALID   F2P=1   P2P=203  (0.5s -> 0.3s)
+[24/25] 356e21b9ee5a Pass unknown parameter to pre_load, post_load, a   VALID   F2P=6   P2P=35   (0.3s -> 0.3s)
+[25/25] 47e8e86c07c3 Remove utils.isoformat, to_iso_time, to_iso_date   REJECTED  tests already pass without the fix
+
+18/25 became real tasks in 22s -> tasks/marshmallow-validated.jsonl
+task set e145c21d559a1108  (2025-01-13 .. 2026-08-21)

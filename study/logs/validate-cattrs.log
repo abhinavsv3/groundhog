@@ -1,0 +1,36 @@
+building environment for cattrs -> /Users/abhinav/.cache/groundhog/cattrs-ea7b0fa45e2bacf9
+  note: resolved 8 deps from [dependency-groups]
+  $ uv pip install -e .
+  $ uv pip install 'hypothesis>=6.135.26' 'pytest>=8.4.1' 'pytest-typing; python_version == '"'"'3.14'"'"' and implementation_name == '"'"'cpython'"'"'' 'mypy; python_version == '"'"'3.14'"'"' and implementation_name == '"'"'cpython'"'"'' 'pytest-benchmark>=5.1.0' 'immutables>=0.21' 'coverage>=7.9.2' 'pytest-xdist>=3.8.0'
+  $ uv pip install pytest
+  ready: /Users/abhinav/.cache/groundhog/cattrs-ea7b0fa45e2bacf9
+validating 25 candidates
+
+[1/25] 5bf7c9729392 Escape the index note when structuring heterogen    VALID   F2P=1   P2P=16   (1.6s -> 0.5s)
+[2/25] f7cd6b1c8a32 Assume naive datetimes are UTC in the msgpack an    REJECTED  tests still fail with the real fix (environm
+[3/25] 3d57d6b4afac Escape override rename keys when generating stru    VALID   F2P=1   P2P=58   (7.2s -> 5.5s)
+[4/25] f2e42f3c69da Improve TypedDict key quoting                       VALID   F2P=2   P2P=28   (4.4s -> 4.2s)
+[5/25] a6c0900533af Disambiguate unions independent of member class     VALID   F2P=1   P2P=23   (23.2s -> 17.6s)
+[6/25] 3d070824b3f3 Fix msgspec optimizations on 3.14                   REJECTED  tests still fail with the real fix (environm
+[7/25] 0e5898a410d1 Introduce tuple structuring hook factories          VALID   F2P=7   P2P=0    (0.6s -> 0.5s)
+[8/25] f693a0b35c3d Support type aliases in union passthrough           VALID   F2P=4   P2P=0    (0.5s -> 0.4s)
+[9/25] e1ad8cd9528e Support `annotationlib.ForwardRef`                  REJECTED  tests still fail with the real fix (environm
+[10/25] a829300d82fb Avoid raising plain exception (#728)               REJECTED  tests still fail with the real fix (environm
+[11/25] 573915b6b450 Working set fix (#722)                             VALID   F2P=1   P2P=104  (1.6s -> 1.5s)
+[12/25] 6bc4708fb9b2 Support overrides in annotated attributes (#717)   VALID   F2P=14  P2P=2    (0.5s -> 0.4s)
+[13/25] 1ac3ce800837 Introduce tomllib (#715)                           REJECTED  tests still fail with the real fix (environm
+[14/25] 4c20ab73c035 configure_tagged_unions: fix recursive type alia   VALID   F2P=2   P2P=4    (0.5s -> 0.4s)
+[15/25] 31c19cee4051 Fix `include_subclasses` + configure_tagged_unio   VALID   F2P=2   P2P=102  (1.5s -> 1.5s)
+[16/25] 6941413cb790 Generate rename metadata for aliases in generate   VALID   F2P=4   P2P=54   (7.6s -> 5.6s)
+[17/25] 08bd8d932141 tomlkit: handle native date objects (#708)         REJECTED  tests still fail with the real fix (environm
+[18/25] 74adfc28ee27 An initial implementation of unstructuring and s   VALID   F2P=2   P2P=2    (2.4s -> 1.3s)
+[19/25] 39a4d6ebe1ab Apply attrs' converter to default before omit_if   VALID   F2P=1   P2P=60   (14.9s -> 11.8s)
+[20/25] 2ec13dd485b5 Fix structuring of nested generics, add test (#6   VALID   F2P=2   P2P=0    (0.5s -> 0.4s)
+[21/25] 88af007e5f60 Enable Python 3.14 (#653)                          REJECTED  tests still fail with the real fix (environm
+[22/25] f0c0a5383e78 Structure abstract sets to frozensets (#686)       VALID   F2P=31  P2P=0    (0.9s -> 0.5s)
+[23/25] 64f6305ff910 Fix include_subclasses strategy with a generic p   VALID   F2P=2   P2P=96   (1.8s -> 1.6s)
+[24/25] 75bfffac2495 Improve Hypothesis test robustness (#684)          REJECTED  tests still fail with the real fix (environm
+[25/25] 5d23a08c2bb4 Bump test dependencies (#673)                      REJECTED  tests still fail with the real fix (environm
+
+16/25 became real tasks in 318s -> tasks/cattrs-validated.jsonl
+task set f967345760476040  (2025-09-23 .. 2026-09-14)

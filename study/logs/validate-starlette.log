@@ -1,0 +1,36 @@
+building environment for starlette -> /Users/abhinav/.cache/groundhog/starlette-0b28b1a45f5b5b79
+  note: resolved 13 deps from [dependency-groups]
+  $ uv pip install -e .
+  $ uv pip install 'starlette[full]' 'httpx2[zstd]>=2.0.0' 'blockbuster>=1.5.23' 'coverage>=7.8.2' 'importlib-metadata>=9.0.1' 'mypy>=2.3.1' 'opentelemetry-sdk>=1.44.0' 'pytest-codspeed>=4.1.1' 'ruff>=0.16.5' 'types-PyYAML>=6.0.12.20250516' 'pytest>=9.1.1' 'trio>=0.34.0' 'twine>=7.0.0'
+  $ uv pip install pytest
+  ready: /Users/abhinav/.cache/groundhog/starlette-0b28b1a45f5b5b79
+validating 25 candidates
+
+[1/25] 03f12b7fcf0a Allow HTTPException to use non-standard status c    VALID   F2P=2   P2P=23   (1.4s -> 0.5s)
+[2/25] 76fd00f1e293 Reject `WebSocket` requests to `StaticFiles` (#3    VALID   F2P=2   P2P=74   (0.8s -> 0.7s)
+[3/25] fd662b17b9cc Implement `identity` on `SimpleUser` and `Unauth    VALID   F2P=4   P2P=7    (0.5s -> 0.4s)
+[4/25] 3ebcaf38fbfe Run background tasks after the response is sent     VALID   F2P=2   P2P=61   (2.0s -> 2.0s)
+[5/25] 8feafc640834 Add provider parameters to OpenTelemetryMiddlewa    VALID   F2P=8   P2P=45   (0.7s -> 0.5s)
+[6/25] b4c1d181612c Handle empty and absent payloads in `WebSocketEn    VALID   F2P=6   P2P=24   (0.5s -> 0.5s)
+[7/25] c9176b57af56 Vary CORS preflight responses by their request i    VALID   F2P=10  P2P=26   (0.5s -> 0.5s)
+[8/25] 699dae42f5ee Include Vary: Origin on all normal CORS response    VALID   F2P=14  P2P=20   (0.5s -> 0.5s)
+[9/25] dee5bb38d6c0 Support partitioned cookies in SessionMiddleware    VALID   F2P=4   P2P=23   (0.5s -> 0.5s)
+[10/25] 39fd0ffac255 Return 400 for invalid multipart parser input (#   REJECTED  tests still fail with the real fix (environm
+[11/25] e4bd5981540e Add support for the QUERY HTTP method (#3489)      REJECTED  tests still fail with the real fix (environm
+[12/25] e7a0b007b601 Replace RuntimeError with WebSocketDisconnected    REJECTED  tests still fail with the real fix (environm
+[13/25] d9ed5b0f98fd Track session mutations from popitem() and |= (#   REJECTED  tests still fail with the real fix (environm
+[14/25] 49e22755cd44 Reject malformed Host authorities consistently (   REJECTED  tests still fail with the real fix (environm
+[15/25] 6ad24bb7809c Support IPv6 hosts in `TrustedHostMiddleware` (#   REJECTED  tests still fail with the real fix (environm
+[16/25] 04d7869c1ec3 Add `excluded_urls` to `OpenTelemetryMiddleware`   REJECTED  tests still fail with the real fix (environm
+[17/25] 9c594b56e8da Add OpenTelemetry middleware (#3438)               REJECTED  tests still fail with the real fix (environm
+[18/25] 9eea41ad3c26 Expose `http.response.debug` info via response e   REJECTED  tests still fail with the real fix (environm
+[19/25] 38f8999a2296 Add `max_body_size` to `Starlette` and route cla   REJECTED  tests still fail with the real fix (environm
+[20/25] 9c500db19785 Limit `FileResponse` to 100 ranges (#3430)         REJECTED  tests still fail with the real fix (environm
+[21/25] f1dc9b630da6 Expand default excluded content types in `GZipMi   REJECTED  tests still fail with the real fix (environm
+[22/25] b07b8c615163 Skip compression of partial responses in `GZipMi   REJECTED  tests still fail with the real fix (environm
+[23/25] 99b7cc62e0c2 Add `exclude_content_types` parameter to `GZipMi   REJECTED  tests still fail with the real fix (environm
+[24/25] cb824a1c7d67 Offload large GZip compression (#3410)             REJECTED  tests still fail with the real fix (environm
+[25/25] 25b8e179d8d7 Enforce `FormParser` limits in parser callbacks    REJECTED  tests still fail with the real fix (environm
+
+9/25 became real tasks in 28s -> tasks/starlette-validated.jsonl
+task set e787777e7f318948  (2026-09-05 .. 2026-09-12)

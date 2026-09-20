@@ -7,4 +7,24 @@ validating 25 candidates
 [5/25] 63d3200199f6 perf: eliminate inspect imports from protocol.py    REJECTED  tests still fail with the real fix (environm
 [6/25] b17c6169a418 perf: reduce Console and RichHandler import time    VALID   F2P=1   P2P=98   (0.8s -> 0.6s)
 [7/25] 87e7ca27d0f8 refinements, and tests                              VALID   F2P=60  P2P=0    (300.0s -> 0.3s)
-[8/25] c4db67aa039a test cases                                        
+[8/25] c4db67aa039a test cases                                          VALID   F2P=57  P2P=0    (300.0s -> 0.3s)
+[9/25] 31930ddc842d fix test                                            VALID   F2P=4   P2P=45   (0.2s -> 0.2s)
+[10/25] 13f87a4007f6 Fix ZWJ and edge cases                             REJECTED  tests still fail with the real fix (environm
+[11/25] e9b0e1915803 Update to markdown styles                          REJECTED  tests still fail with the real fix (environm
+[12/25] 39ee57dfe706 fix background style with soft wrap                VALID   F2P=1   P2P=99   (0.5s -> 0.3s)
+[13/25] ba2806e7f472 don't strip whitespace when soft_wrap is True      REJECTED  tests already pass without the fix
+[14/25] 1c5e03eb3202 fix for padding width                              VALID   F2P=2   P2P=10   (0.4s -> 0.2s)
+[15/25] b08e00fce2c8 empty live                                         VALID   F2P=1   P2P=10   (2.4s -> 2.3s)
+[16/25] f924a21a3144 tests                                              VALID   F2P=4   P2P=165  (0.6s -> 0.3s)
+[17/25] 0c271d5bb672 Handle unusual __qualname__ in inspect             VALID   F2P=1   P2P=41   (0.3s -> 0.3s)
+[18/25] 655b5210cb14 test fixes                                         REJECTED  tests still fail with the real fix (environm
+[19/25] 5daf203de9d0 padding property                                   REJECTED  tests still fail with the real fix (environm
+[20/25] 0ab246729719 TTY_INTERACTIVE env var                            VALID   F2P=1   P2P=98   (0.8s -> 0.6s)
+[21/25] 82afcb4ff58d test fixes                                         REJECTED  tests still fail with the real fix (environm
+[22/25] 30e5ed61a606 fix(panel): fix title missing panel background     VALID   F2P=1   P2P=5    (0.3s -> 0.2s)
+[23/25] 44797c00ada0 added trest                                        REJECTED  tests already pass without the fix
+[24/25] 9175392a5c93 New environment var                                VALID   F2P=1   P2P=98   (0.8s -> 0.6s)
+[25/25] be42f1b08247 test and added box drawing characters              VALID   F2P=1   P2P=59   (0.4s -> 0.2s)
+
+15/25 became real tasks in 638s -> tasks/rich-validated.jsonl
+task set 3702d7ff74301c98  (2024-10-22 .. 2026-04-12)

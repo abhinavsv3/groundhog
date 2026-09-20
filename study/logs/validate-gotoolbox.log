@@ -1,0 +1,12 @@
+using --p2p-scope full: Go compilation failures leave nothing for file scope to protect
+validating 6 candidates
+
+[1/6] e2108520fa5a Add Pad                                              VALID   F2P=6   P2P=2    (0.2s -> 0.7s)
+[2/6] c2026685102b Add numutil package                                  VALID   F2P=2   P2P=5    (0.1s -> 0.4s)
+[3/6] 23a9731b2475 Add Truncate                                         VALID   F2P=5   P2P=0    (0.1s -> 0.4s)
+[4/6] 6c1a5b9e2fe1 Add Dedupe                                           VALID   F2P=4   P2P=0    (0.1s -> 0.4s)
+[5/6] fbf78db8a88f Add Reverse                                          VALID   F2P=3   P2P=0    (0.1s -> 0.4s)
+[6/6] 562a635f26f3 Add Clamp                                            VALID   F2P=2   P2P=0    (0.1s -> 0.4s)
+
+6/6 became real tasks in 6s -> tasks/gotoolbox-validated.jsonl
+task set d8c7d0aa1fb84d56  (2026-09-19 .. 2026-09-19)

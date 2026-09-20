@@ -1,0 +1,30 @@
+validating 25 candidates
+
+[1/25] f53fc5440d7f Stop evolve dunders from being modified (#1606)     REJECTED  tests already pass without the fix
+[2/25] 9b98a730bf71 Drop Python 3.9 (#1603)                             REJECTED  tests already pass without the fix
+[3/25] 5aa76a4450c3 Add `ne` validator (#1571)                          VALID   F2P=168 P2P=0    (0.4s -> 0.4s)
+[4/25] 4b5b295bb815 Make on_setattr hooks accept generators (#1592)     VALID   F2P=53  P2P=0    (0.4s -> 0.3s)
+[5/25] 6851ab593cd2 Defer imports on the cold import path (#1600)       REJECTED  tests already pass without the fix
+[6/25] 0f758fe54a87 Expose converter as a decorator (#1541)             VALID   F2P=5   P2P=275  (3.9s -> 2.9s)
+[7/25] 48b8611c2777 Add instance support to attrs.fields() (#1529)      VALID   F2P=2   P2P=273  (4.5s -> 2.7s)
+[8/25] af9c510912ce Fix validators.disabled() to save/restore state     VALID   F2P=1   P2P=162  (0.5s -> 0.4s)
+[9/25] ce89f5d11feb Fix message passing in frozen errors                VALID   F2P=2   P2P=405  (0.8s -> 0.7s)
+[10/25] 862696afb52f Resolve field aliases before calling field_trans   VALID   F2P=17  P2P=684  (5.9s -> 3.3s)
+[11/25] c44b8b0052ca update dev (#1507)                                 REJECTED  tests already pass without the fix
+[12/25] b1dc8f673579 Split out Mypy-dependent typing examples, add mo   ERROR  git checkout b1dc8f673579137e14e44afdf0e40e4
+[13/25] 1315e42fe517 Improve performance of attr.astuple (#1469)        REJECTED  tests already pass without the fix
+[14/25] 7369ad9f4b27 Improve performance of asdict in the common case   REJECTED  tests already pass without the fix
+[15/25] 6e3786c59927 Make `kw_only=True` behavior consistent with dat   VALID   F2P=14  P2P=253  (3.9s -> 2.8s)
+[16/25] 61e8179545c7 Allow forward-references on 3.14 (#1451)           ERROR  git checkout 61e8179545c7968b600baf8083abee9
+[17/25] 5bab46deb916 Allow deep_iterable and deep_mapping take lists/   REJECTED  tests still fail with the real fix (environm
+[18/25] 000c56347340 Fix slotted reference cycles on 3.14 (#1446)       REJECTED  tests already pass without the fix
+[19/25] cbaef3f8f5ec Make validators optional in deep_mapping (#1448)   REJECTED  tests still fail with the real fix (environm
+[20/25] 937b1e232803 Fixes issue #1427 (#1428)                          VALID   F2P=2   P2P=262  (4.1s -> 2.7s)
+[21/25] 577c782c328d update ruff                                        VALID   F2P=1   P2P=6    (0.3s -> 0.3s)
+[22/25] e048efcb3954 Perform attr order checks after field transforme   VALID   F2P=2   P2P=11   (0.3s -> 0.4s)
+[23/25] 75723b772095 Accept valid unicode identifiers as class parame   VALID   F2P=1   P2P=263  (4.1s -> 2.9s)
+[24/25] 62bdbf234f45 Implement __replace__ on 3.13 (#1383)              REJECTED  tests already pass without the fix
+[25/25] 1e07f4689748 Make attrs.converters.pipe only return a Convert   REJECTED  tests still fail with the real fix (environm
+
+12/25 became real tasks in 80s -> tasks/attrs-validated.jsonl
+task set 60e84964ef3bcd79  (2025-02-09 .. 2026-08-01)

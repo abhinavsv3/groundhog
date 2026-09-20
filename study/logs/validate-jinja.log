@@ -1,0 +1,33 @@
+building environment for jinja -> /Users/abhinav/.cache/groundhog/jinja-92614872fdd3417e
+  note: resolved 3 deps from [dependency-groups]
+  $ uv pip install -e .
+  $ uv pip install pytest pytest-timeout trio
+  $ uv pip install pytest
+  ready: /Users/abhinav/.cache/groundhog/jinja-92614872fdd3417e
+validating 22 candidates
+
+[1/22] 065334d1ee5b attr filter uses env.getattr                        VALID   F2P=1   P2P=16   (0.8s -> 0.2s)
+[2/22] 66587ce989e5 Fix bug where set would sometimes fail within if    VALID   F2P=1   P2P=53   (0.3s -> 0.3s)
+[3/22] ee832194cd9f Add support for namespaces in tuple assignment      VALID   F2P=1   P2P=62   (0.5s -> 0.4s)
+[4/22] aaa083d26530 separate messages, add test                         REJECTED  tests already pass without the fix
+[5/22] 227edfd372f1 clean up message, add test                          VALID   F2P=1   P2P=41   (0.3s -> 0.2s)
+[6/22] e45bc745a76b Bugfix: wrong default argument for `Environment.    REJECTED  tests already pass without the fix
+[7/22] 56a724644b1a fix f-string syntax error in code generation        VALID   F2P=1   P2P=5    (0.4s -> 0.2s)
+[8/22] 91a972f58089 sandbox indirect calls to str.format                VALID   F2P=1   P2P=15   (0.2s -> 0.2s)
+[9/22] b5120582706b sandbox disallows `clear` and `pop` on mutable s    VALID   F2P=1   P2P=14   (0.3s -> 0.2s)
+[10/22] 7232b8246200 Fix pickle/copy support for the `missing` single   VALID   F2P=7   P2P=20   (0.3s -> 0.3s)
+[11/22] d4fb0e8c401a preserve `__slots__` on Undefined classes          VALID   F2P=12  P2P=40   (0.3s -> 0.2s)
+[12/22] 4936e4d48207 make tuple unpacking deterministic in compiler     VALID   F2P=3   P2P=2    (0.2s -> 0.2s)
+[13/22] 76af7110ead6 make unique filter async-aware                     VALID   F2P=1   P2P=46   (0.5s -> 0.3s)
+[14/22] d3a0b1a4abac use env.concat when calling block reference        VALID   F2P=1   P2P=20   (0.3s -> 0.2s)
+[15/22] 679af7f816ce fix test_package_zip_list on 3.13                  REJECTED  tests already pass without the fix
+[16/22] 1655128cfc0e test on trio, fix all missing aclose related war   VALID   F2P=9   P2P=113  (0.6s -> 0.5s)
+[17/22] d65503077008 disallow invalid characters in keys to xmlattr f   VALID   F2P=6   P2P=107  (0.4s -> 0.3s)
+[18/22] 19a55db3b411 Make nested-trans-block exceptions nicer           VALID   F2P=2   P2P=49   (0.4s -> 0.3s)
+[19/22] 7dd3680e6eea xmlattr filter disallows keys with spaces          VALID   F2P=1   P2P=107  (0.4s -> 0.3s)
+[20/22] ae312b3065d8 update dependencies                                REJECTED  tests already pass without the fix
+[21/22] 051df10c7b95 fix check for empty required block (#1858)         VALID   F2P=1   P2P=21   (0.3s -> 0.2s)
+[22/22] 3fadee01b712 update dependencies                                REJECTED  tests already pass without the fix
+
+17/22 became real tasks in 15s -> tasks/jinja-validated.jsonl
+task set 2233678d607332e4  (2023-06-01 .. 2025-03-05)

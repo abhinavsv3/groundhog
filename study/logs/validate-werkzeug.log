@@ -1,0 +1,41 @@
+building environment for werkzeug -> /Users/abhinav/.cache/groundhog/werkzeug-888b4a4533ad53eb
+  note: resolved 6 deps from [dependency-groups]
+  $ uv pip install -e .
+  $ uv pip install cffi cryptography ephemeral-port-reserve pytest pytest-timeout watchdog
+  $ uv pip install pytest
+  ready: /Users/abhinav/.cache/groundhog/werkzeug-888b4a4533ad53eb
+validating 25 candidates
+
+[1/25] ecb07329b88a deprecate get/set/del item/attr on auth classes     REJECTED  tests already pass without the fix
+[2/25] 5c7420b70061 auth headers are properties                         VALID   F2P=1   P2P=78   (0.4s -> 0.3s)
+[3/25] 2f2625fefdae deprecate environ properties                        VALID   F2P=1   P2P=35   (0.4s -> 0.3s)
+[4/25] 50bf1e92af0b deprecate UserAgent                                 VALID   F2P=1   P2P=78   (0.4s -> 0.2s)
+[5/25] aca1f56ea64a refactor empty ContentRange and bool                REJECTED  tests already pass without the fix
+[6/25] 286c46ffcaa9 deprecate UpdateDictMixin                           REJECTED  tests already pass without the fix
+[7/25] b0becc395cce deprecate ImmutableList                             VALID   F2P=1   P2P=185  (0.6s -> 0.3s)
+[8/25] 019498f10e58 deprecate autocorrect_location_header               VALID   F2P=18  P2P=161  (0.6s -> 0.4s)
+[9/25] 0c419f951f32 disallow range -0                                   VALID   F2P=1   P2P=90   (0.4s -> 0.3s)
+[10/25] 6d7c0b4e2f78 sort converter matches numerically                 VALID   F2P=1   P2P=118  (2.1s -> 1.8s)
+[11/25] 1b8bc581fd81 validate base64                                    VALID   F2P=1   P2P=90   (0.4s -> 0.2s)
+[12/25] c678a2310328 stricter int and float converters                  REJECTED  no test flipped from failing to passing
+[13/25] ab16e62df723 int URL 404s when longer than max_int_str_digits   VALID   F2P=1   P2P=117  (2.1s -> 1.8s)
+[14/25] 658bf5ed30e5 validate host port                                 VALID   F2P=3   P2P=28   (0.3s -> 0.2s)
+[15/25] b9761b5b6d9b make plain int parsing even stricter               VALID   F2P=2   P2P=11   (0.3s -> 0.2s)
+[16/25] 5b0dc6d64c32 discard invalid etag values                        VALID   F2P=2   P2P=166  (0.5s -> 0.3s)
+[17/25] 6efb81984709 improve performance of etag parsing                REJECTED  tests already pass without the fix
+[18/25] 4da3786f1443 preserve empty username, password, port 0          VALID   F2P=4   P2P=18   (0.3s -> 0.2s)
+[19/25] 884437aef93e fix boolean logic for external url                 VALID   F2P=1   P2P=149  (2.1s -> 1.9s)
+[20/25] da9d4724fc86 parse plain int in a few more inputs               VALID   F2P=9   P2P=1    (0.3s -> 0.2s)
+[21/25] ff1b12a6629b use base64 instead of hex                          VALID   F2P=2   P2P=78   (0.4s -> 0.3s)
+[22/25] 8c129d383eff use sha3-256 instead of sha-1                      VALID   F2P=2   P2P=78   (0.4s -> 0.2s)
+[23/25] 8e9105fbafd3 if-range discards weak etag                        VALID   F2P=1   P2P=88   (0.4s -> 0.2s)
+[24/25] f88164a271dd Prevent scientific notation being used for float   VALID   F2P=1   P2P=147  (2.1s -> 1.8s)
+[25/25] 863f66524746 clean up old comments                              REJECTED  tests already pass without the fix
+
+dropped 1 duplicate task(s) -- same tests flip, so they are not independent observations:
+  8c129d383eff  use sha3-256 instead of sha-1
+      -> same change as ff1b12a6629b use base64 instead of hex
+  (--keep-duplicates to retain them)
+
+18/25 became real tasks in 40s -> tasks/werkzeug-validated.jsonl
+task set 0e973cde55d782d0  (2026-04-18 .. 2026-09-18)

@@ -1,0 +1,12 @@
+1 models x 6 tasks x 1 repeats = 6 attempts
+resuming: 0 already recorded, 6 to run
+
+openai:qwen2.5-coder:7b          [1/6] Add Pad                                            fail    64.4s  
+openai:qwen2.5-coder:7b          [2/6] Add numutil package                                fail    42.8s  
+openai:qwen2.5-coder:7b          [3/6] Add Truncate                                       fail    56.7s  
+openai:qwen2.5-coder:7b          [4/6] Add Dedupe                                         fail    24.7s  
+openai:qwen2.5-coder:7b          [5/6] Add Reverse                                        PASS    22.8s  
+openai:qwen2.5-coder:7b          [6/6] Add Clamp                                          fail    32.5s  
+                                 -> 1/6
+
+6 attempts -> results/main-openai-qwen2.5-coder-7b-gotoolbox.jsonl

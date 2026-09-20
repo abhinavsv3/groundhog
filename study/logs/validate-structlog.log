@@ -1,0 +1,36 @@
+building environment for structlog -> /Users/abhinav/.cache/groundhog/structlog-92282d881e4a4c93
+  note: resolved 5 deps from [dependency-groups]
+  $ uv pip install -e .
+  $ uv pip install 'pytest-asyncio>=0.17' pytest-randomly 'pytest>=6.0' simplejson 'time-machine>=2.14.1'
+  $ uv pip install pytest
+  ready: /Users/abhinav/.cache/groundhog/structlog-92282d881e4a4c93
+validating 25 candidates
+
+[1/25] 0eef50d9dc1b stdlib: Add snake_case shims for isEnabledFor &     VALID   F2P=2   P2P=139  (0.9s -> 0.4s)
+[2/25] ba1a17857a96 Add CallsiteParameter.QUAL_MODULE (#812)            REJECTED  tests still fail with the real fix (environm
+[3/25] ba04ac275291 Fix thread name CallsiteParameterAdder in async     REJECTED  tests still fail with the real fix (environm
+[4/25] 3763c623c1a2 Add name attribute to BytesLogger (#786)            VALID   F2P=34  P2P=241  (0.7s -> 0.5s)
+[5/25] 2796b22ee1b5 Monochrome Rich traceback rendering w/ ConsoleRe    REJECTED  tests already pass without the fix
+[6/25] 79032b3f9374 Use WeakKeyDictionary for WRITE_LOCKS to prevent    VALID   F2P=3   P2P=121  (0.4s -> 0.4s)
+[7/25] f0b2487050d2 Deprecate better-exceptions integration (#802)      REJECTED  tests already pass without the fix
+[8/25] abd263899e5e dev: don't raise warning on rendered exceptions     REJECTED  tests already pass without the fix
+[9/25] 65ceffd6a2e3 update dev                                          REJECTED  tests already pass without the fix
+[10/25] ecaa15ac6b16 stdlib: add support for stacklevel (#763)          REJECTED  tests still fail with the real fix (environm
+[11/25] 005ce7301e6a Add CallsiteParameter.QUAL_NAME (#761)             REJECTED  tests still fail with the real fix (environm
+[12/25] af571c8aecb3 dev: add repr_native_str property                  REJECTED  tests still fail with the real fix (environm
+[13/25] ad85c52da621 dev: add event_key and timestamp_key properties    REJECTED  tests still fail with the real fix (environm
+[14/25] 8b3b2703edfe dev: add pad_event_to property, rename argument    REJECTED  tests still fail with the real fix (environm
+[15/25] bac52127fdbd dev: add pad_level property                        REJECTED  tests still fail with the real fix (environm
+[16/25] 9ac5612725c2 dev: add level-styles properties                   REJECTED  tests still fail with the real fix (environm
+[17/25] 1e51f5f6a272 dev: add colors and force_colors properties (#75   REJECTED  tests still fail with the real fix (environm
+[18/25] bc67e8a7c1cd dev: get_active_console_renderer → ConsoleRender   REJECTED  tests still fail with the real fix (environm
+[19/25] b0081ac705ce dev: allow columns to be got and set (#757)        REJECTED  tests still fail with the real fix (environm
+[20/25] acc17edee111 dev: make Styles public for easier customization   REJECTED  tests still fail with the real fix (environm
+[21/25] 7935efe2df58 Allow setting sort_keys on current ConsoleRender   REJECTED  tests still fail with the real fix (environm
+[22/25] d517cde8ad7b Improve ConsoleRenderer ergonomics (#749)          REJECTED  tests still fail with the real fix (environm
+[23/25] 5204bc33ef26 Add support for dict-based interpolation in nati   VALID   F2P=4   P2P=39   (0.3s -> 0.2s)
+[24/25] 9d4022c796ea refactor: extract styles configuration to separa   VALID   F2P=2   P2P=63   (0.3s -> 0.3s)
+[25/25] addf622407a9 Fix unbounded recursion when traceback contains    VALID   F2P=51  P2P=0    (300.7s -> 0.4s)
+
+6/25 became real tasks in 322s -> tasks/structlog-validated.jsonl
+task set c7f8044564498741  (2025-09-11 .. 2026-06-01)

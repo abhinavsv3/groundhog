@@ -1,0 +1,5 @@
+1 models x 8 tasks x 1 repeats = 8 attempts
+resuming: 0 already recorded, 8 to run
+
+openai:qwen2.5-coder:7b          [1/8] Handle empty zstd responses (#3412                 fail   163.8s  
+openai:qwen2.5-coder:7b          [2/8] add socks5h proxy support (#3178)                

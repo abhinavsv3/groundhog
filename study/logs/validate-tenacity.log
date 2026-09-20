@@ -1,0 +1,37 @@
+building environment for tenacity -> /Users/abhinav/.cache/groundhog/tenacity-a7c4d1bb43913fd2
+  note: test extras: test
+  note: resolved 8 deps from [dependency-groups]
+  $ uv pip install -e .[test]
+  $ uv pip install poethepoet pytest 'tornado>=6.0' ruff==0.16.5 mypy==2.3.1 sphinx reno trio
+  $ uv pip install pytest
+  ready: /Users/abhinav/.cache/groundhog/tenacity-a7c4d1bb43913fd2
+validating 25 candidates
+
+[1/25] 26f719dc73d3 Respect enabled=False on the direct-call path (#    VALID   F2P=2   P2P=170  (3.2s -> 2.4s)
+[2/25] 949dcfa6c0a4 fix: read the tornado global live instead of an     VALID   F2P=1   P2P=4    (0.3s -> 0.2s)
+[3/25] 389aab8b2688 fix: restore support for falsy wait values and c    VALID   F2P=3   P2P=165  (2.5s -> 2.4s)
+[4/25] 7c3c45cf57a3 fix: annotate wait_base.__radd__ as taking the i    REJECTED  tests already pass without the fix
+[5/25] a2af454834c6 Fix static typing of @retry decorated instance m    REJECTED  tests already pass without the fix
+[6/25] b3c5a9f92121 fix: stop hanging on cyclic exception __cause__     REJECTED  tests still fail with the real fix (environm
+[7/25] c650fb452046 Fix exponential wait threshold underflow (#656)     REJECTED  tests still fail with the real fix (environm
+[8/25] 40fad186bae1 Accept empty message in retry_if_exception_messa    REJECTED  tests still fail with the real fix (environm
+[9/25] 29d398bd21af Avoid unnecessary exponential wait computation (    REJECTED  tests still fail with the real fix (environm
+[10/25] 4213bad95604 Keep statistics visible when @retry is further w   REJECTED  tests still fail with the real fix (environm
+[11/25] 868c60b80cd8 fix: respect enabled=False in iterator protocols   REJECTED  tests still fail with the real fix (environm
+[12/25] e5179bdab993 fix: reraise underlying exception when TryAgain    REJECTED  tests still fail with the real fix (environm
+[13/25] 1106b9a168c5 feat: deprecate `initial` in favor of `multiplie   REJECTED  tests still fail with the real fix (environm
+[14/25] 3233040287fb feat: add `min` param and `timedelta` support to   REJECTED  tests still fail with the real fix (environm
+[15/25] cb320c4d80d8 fix: make Retrying and retry strategies picklabl   REJECTED  tests still fail with the real fix (environm
+[16/25] 44eaefbbd0ec refactor: flatten chained | and & into single re   REJECTED  tests still fail with the real fix (environm
+[17/25] 39eb157a686a feat: add enabled parameter to disable retrying    REJECTED  tests still fail with the real fix (environm
+[18/25] 124e3a67c7a9 feat: add async context manager support to Attem   REJECTED  tests still fail with the real fix (environm
+[19/25] a02b51a20fbd fix: restore plain function composition with ret   REJECTED  tests still fail with the real fix (environm
+[20/25] f4a31e165152 fix: expose .retry, .statistics, .retry_with to    REJECTED  tests still fail with the real fix (environm
+[21/25] 70083b802cd3 feat: add name parameter to Retrying for meaning   REJECTED  tests still fail with the real fix (environm
+[22/25] 213446e8f5f7 fix: guard against None seconds_since_start in a   REJECTED  tests still fail with the real fix (environm
+[23/25] 1b2b4efa5bc4 fix: resolve tornado mypy errors instead of supp   REJECTED  tests still fail with the real fix (environm
+[24/25] 0bdf1d9e5f42 Fix ordinal suffix generation for numbers ending   VALID   F2P=1   P2P=1    (0.2s -> 0.2s)
+[25/25] 24415ebbca6e support async sleep for sync fn (#551)             REJECTED  tests still fail with the real fix (environm
+
+4/25 became real tasks in 32s -> tasks/tenacity-validated.jsonl
+task set 4b17c730c26e6592  (2026-02-17 .. 2026-08-06)
