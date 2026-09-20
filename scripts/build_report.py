@@ -84,16 +84,38 @@ def section_models(rows: list[dict]) -> str:
         a["tampered"] += bool(r.get("tampered_with_tests"))
         a["seconds"] += r["seconds"]
         t = tools_of(r)
+        a["silent"] += (t.get("calls", 0) == 0)
         for key in ("calls", "errors", "recovered_from_text"):
             a[key] += t.get(key, 0)
 
-    out = ["| model | n | solved (95% CI) | met F2P | collateral | tampered | min/attempt |",
+    out = ["| model | n | solved (95% CI) | met F2P | collateral | 0 tool calls | min/attempt |",
            "|---|---|---|---|---|---|---|"]
     for model, a in sorted(agg.items(), key=lambda kv: -kv[1]["solved"] / max(kv[1]["n"], 1)):
+        silent = f"{a['silent']}/{a['n']}"
+        score = f"**{ci(a['solved'], a['n'])}**"
+        if unmeasurable(a):
+            score, silent = "_not measured_", f"**{silent}**"
         out.append(
-            f"| `{short(model)}` | {a['n']} | **{ci(a['solved'], a['n'])}** | {a['f2p']} "
-            f"| {a['collateral']} | {a['tampered']} | {a['seconds'] / a['n'] / 60:.1f} |")
+            f"| `{short(model)}` | {a['n']} | {score} | {a['f2p']} "
+            f"| {a['collateral']} | {silent} | {a['seconds'] / a['n'] / 60:.1f} |")
     return "\n".join(out) + "\n"
+
+
+def unmeasurable(a: collections.Counter) -> bool:
+    """A model that mostly never called a tool was not measured, it was lost.
+
+    See study/mistral-artifact.md and issue #20. Reporting a percentage for
+    such a run states the parser's failure as the model's capability.
+    """
+    return a["n"] > 0 and a["silent"] / a["n"] > 0.5
+
+
+def unmeasurable_models(rows: list[dict]) -> list[str]:
+    agg: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+    for r in rows:
+        agg[r["model"]]["n"] += 1
+        agg[r["model"]]["silent"] += (tools_of(r).get("calls", 0) == 0)
+    return sorted(m for m, a in agg.items() if unmeasurable(a))
 
 
 def section_repos(rows: list[dict]) -> str:
@@ -140,6 +162,62 @@ def section_mechanism(rows: list[dict]) -> str:
     return "\n".join(out) + "\n"
 
 
+def section_h3c() -> str:
+    """Within-family size comparison, pre-registered as H3c."""
+    repos = ["toolbox", "gotoolbox", "jstoolbox"]
+
+    def load(tag: str) -> dict:
+        out = {}
+        for repo in repos:
+            path = ROOT / f"results/main-{tag}-{repo}.jsonl"
+            if not path.exists():
+                continue
+            for line in open(path):
+                if line.strip():
+                    r = json.loads(line)
+                    out[r["task_id"]] = r
+        return out
+
+    a, b = load("openai-qwen2.5-coder-7b"), load("openai-qwen2.5-coder-14b")
+    shared = set(a) & set(b)
+    if not shared:
+        return "_Not yet run._\n"
+    ka = sum(a[t]["solved"] for t in shared)
+    kb = sum(b[t]["solved"] for t in shared)
+    oa = sum(1 for t in shared if a[t]["solved"] and not b[t]["solved"])
+    ob = sum(1 for t in shared if b[t]["solved"] and not a[t]["solved"])
+    p_val = exact_mcnemar(oa, ob)
+
+    def edit_turn(d: dict) -> tuple[float, int]:
+        v = [tools_of(d[t]).get("first_edit_turn") for t in shared]
+        v = [x for x in v if x is not None]
+        return (sum(v) / len(v), len(v)) if v else (float("nan"), 0)
+
+    e7, n7 = edit_turn(a)
+    e14, n14 = edit_turn(b)
+    verdict = ("It is falsified, and in the opposite direction to the one predicted."
+               if e14 > e7 else "It is supported.")
+
+    return f"""Both sizes ran the same {len(shared)} easy-subset tasks.
+
+| | solved | 95% CI | mean first-edit turn |
+|---|---|---|---|
+| `qwen2.5-coder:7b` | {ka}/{len(shared)} | {ci(ka, len(shared))} | {e7:.2f} (n={n7}) |
+| `qwen2.5-coder:14b` | {kb}/{len(shared)} | {ci(kb, len(shared))} | {e14:.2f} (n={n14}) |
+
+Solve rate: {oa + ob} discordant pairs ({oa} / {ob}), exact McNemar
+**p = {p_val:.4f}**. The larger model is better on these tasks and the direction
+is clean, but five one-directional pairs floor at 0.0625 — the same
+discordant-pair ceiling that defeated the validity gate, for the third time in
+this study.
+
+**H3c predicted that the larger model reaches its first edit sooner. It does
+not — {e14:.2f} against {e7:.2f}.** {verdict} The 14b is slower to
+start editing and better at the edits it makes. Whatever the extra parameters
+buy here, it is not decisiveness.
+"""
+
+
 def paired(path_a: str, path_b: str) -> tuple[int, int, int, int, int, int, float] | None:
     try:
         a = {json.loads(l)["task_id"]: json.loads(l) for l in open(ROOT / path_a) if l.strip()}
@@ -160,6 +238,19 @@ def main() -> int:
     sweep = rows_from("results/main-*.jsonl")
     done = len(sweep)
     models_done = sorted({short(r["model"]) for r in sweep})
+    lost = unmeasurable_models(sweep)
+    measured = [r for r in sweep if r["model"] not in lost]
+    lost_note = ""
+    if lost:
+        names = ", ".join(f"`{short(m)}`" for m in lost)
+        lost_note = f"""
+> **{names} produced no parseable tool call in most attempts and is excluded
+> from every capability and mechanism claim below.** Its zero score measures
+> Groundhog's parser, not the model: probing one turn shows it diagnosing the
+> failure correctly and writing a correct fix, emitted as a markdown code fence
+> rather than as a tool call. Write-up in `study/mistral-artifact.md`; the
+> harness change this calls for is issue #20.
+"""
 
     gate1 = paired("results/cripple-1.jsonl", "results/cripple-14.jsonl")
     gate2 = paired("results/cripple2-1.jsonl", "results/cripple2-14.jsonl")
@@ -257,7 +348,7 @@ shown.
 
 ### Per model
 
-{section_models(sweep)}
+{section_models(sweep)}{lost_note}
 "collateral" counts attempts that satisfied FAIL_TO_PASS while breaking
 previously-passing tests. **A FAIL_TO_PASS-only harness scores every one of
 those as a solve.**
@@ -283,12 +374,16 @@ from one model family on one repository.
 
 ## 6. Secondary outcome — models differ in how they work
 
-{section_mechanism(sweep)}
+{section_mechanism(measured)}
 The "arrived as text" column is the pre-registered H3b, and it is the sharpest
 split in the study: some models emit tool calls as prose that Groundhog has to
 recover with a parser, and others never do. A model in the first group is being
 measured partly on Groundhog's parser — a confound declared in advance in
 `study/preregistration.md`, not discovered afterwards.
+
+### H3c — does size help within a family?
+
+{section_h3c()}
 
 ## 7. Exploratory — the harness scaffolding outweighed the turn budget
 
