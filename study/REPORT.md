@@ -177,11 +177,27 @@ pushes back. That mechanism is worth more than tripling the turn budget was.
 `study/nudge-preregistration.md` including the power calculation showing it
 cannot reach significance on its own:
 
-_Not yet run — queued behind the sweep._
+`nudges off` 4/10 40% (17–69) · `nudges on` 8/10 80% (49–94) · 4 discordant (0 / 4) · **p = 0.1250**
 
-If this holds, the claim is not about one 8B model. It is that a benchmark
-number published without stating its scaffolding is not comparable to another
-lab's.
+The pre-registration predicted this outcome *including its non-significance*,
+and the effect size replicated closely on fresh tasks in a different language:
+42 points in Python, 40 points in Go and JavaScript. Two independent
+experiments, same direction, same magnitude, neither individually significant.
+That is replication rather than certification, and it is not claimed as the
+latter. The 22 tasks are deliberately **not** pooled; doing so would clear
+0.05 easily and would be the peeking the pre-registration refused.
+
+**One part did not replicate.** Nudges-off produced 3 collateral-damage cases
+in the 12 Python tasks and **0 in the 10 Go and JavaScript ones**. So
+"nudging suppresses the failure mode in section 5" is a Python finding on this
+evidence, plausibly a `write_file`-semantics one, and not a general property of
+the mechanism. Detail in `study/nudge-result.md`.
+
+What does survive is the solve-rate effect, and the claim it supports is not
+about one 8B model: a benchmark number published without stating its
+scaffolding is not comparable to another lab's number, even on identical tasks
+with an identical model. Groundhog records `nudges` per attempt. Most harnesses
+have an equivalent, and few report it.
 
 ## 8. Departures from pre-registration
 
