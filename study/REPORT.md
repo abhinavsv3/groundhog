@@ -238,7 +238,13 @@ bash scripts/cripple_test.sh            # gate, attempt 1
 bash scripts/cripple_test_v2.sh         # gate, attempt 2
 bash scripts/nudge_replication.sh       # section 7 replication
 python3 scripts/build_report.py         # regenerate this file
+
+python3 -m groundhog report --results results/study-all.jsonl     --repo "5 repos, 3 languages" --site site/study.html
 ```
+
+The leaderboard page is `site/study.html`. It applies the same refusal the
+terminal report does: a model the harness could not read gets no bar and no
+percentage.
 
 `REPOS_DIR` must point at the cloned repositories. Task sets are pinned and
 carry manifest hashes; the hashes appear in every result record.
