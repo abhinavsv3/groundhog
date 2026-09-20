@@ -1,0 +1,10 @@
+1 models x 4 tasks x 1 repeats = 4 attempts
+resuming: 0 already recorded, 4 to run
+
+openai:qwen3:8b                  [1/4] Add titleCase                                      fail    80.8s  
+openai:qwen3:8b                  [2/4] Add truncate                                       fail   183.6s  
+openai:qwen3:8b                  [3/4] Add dedupe                                         PASS    95.0s  
+openai:qwen3:8b                  [4/4] Add clamp                                          PASS   114.0s  
+                                 -> 2/4
+
+4 attempts -> results/nonudge-jstoolbox.jsonl

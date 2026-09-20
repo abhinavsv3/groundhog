@@ -1,0 +1,14 @@
+1 models x 8 tasks x 1 repeats = 8 attempts
+resuming: 0 already recorded, 8 to run
+
+openai:mistral:latest            [1/8] Fix race condition on `KeyboardInt                 fail   404.6s  
+openai:mistral:latest            [2/8] Fix `copy`, `deepcopy` and `pickle                 fail   153.5s  
+openai:mistral:latest            [3/8] Forwards all user's parameters set                 fail   215.2s  
+openai:mistral:latest            [4/8] Refactor pager stream handling; dr                 fail   163.0s  
+openai:mistral:latest            [5/8] Close the pager temp file before u                 fail   207.6s  
+openai:mistral:latest            [6/8] Land the progress bar on its final                 fail   247.2s  
+openai:mistral:latest            [7/8] Preserve declaration order of help                 fail   147.1s  
+openai:mistral:latest            [8/8] Deprecate `isolated_filesystem` an                 fail   175.0s  
+                                 -> 0/8
+
+8 attempts -> results/main-openai-mistral-latest-click.jsonl

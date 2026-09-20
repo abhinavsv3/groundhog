@@ -16,3 +16,9 @@ openai:qwen3:8b                  [12/12] Add clamp()                            
                                  -> 9/12
 
 12 attempts -> results/main-openai-qwen3-8b-toolbox.jsonl
+1 models x 12 tasks x 1 repeats = 12 attempts
+resuming: 12 already recorded, 0 to run
+
+                                 -> 0/0
+
+0 attempts -> results/main-openai-qwen3-8b-toolbox.jsonl

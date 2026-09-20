@@ -1,0 +1,10 @@
+1 models x 4 tasks x 1 repeats = 4 attempts
+resuming: 0 already recorded, 4 to run
+
+openai:qwen2.5-coder:14b         [1/4] Add titleCase                                      PASS   114.8s  
+openai:qwen2.5-coder:14b         [2/4] Add truncate                                       fail    96.1s  
+openai:qwen2.5-coder:14b         [3/4] Add dedupe                                         PASS   102.8s  
+openai:qwen2.5-coder:14b         [4/4] Add clamp                                          PASS    41.6s  
+                                 -> 3/4
+
+4 attempts -> results/main-openai-qwen2.5-coder-14b-jstoolbox.jsonl

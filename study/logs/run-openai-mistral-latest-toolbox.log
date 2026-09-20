@@ -1,0 +1,18 @@
+1 models x 12 tasks x 1 repeats = 12 attempts
+resuming: 0 already recorded, 12 to run
+
+openai:mistral:latest            [1/12] Add title_case()                                  fail   452.7s  
+openai:mistral:latest            [2/12] Add human_bytes()                                 fail   133.5s  
+openai:mistral:latest            [3/12] Add count_words()                                 fail   201.4s  
+openai:mistral:latest            [4/12] Add safe_divide()                                 fail   191.5s  
+openai:mistral:latest            [5/12] Add slugify()                                     fail   200.7s  
+openai:mistral:latest            [6/12] Add flatten()                                     fail   224.6s  
+openai:mistral:latest            [7/12] Add strip_prefix()                                fail   179.8s  
+openai:mistral:latest            [8/12] Add parse_bool()                                  fail   149.7s  
+openai:mistral:latest            [9/12] Add truncate()                                    fail   115.8s  
+openai:mistral:latest            [10/12] Add dedupe()                                     fail   111.9s  
+openai:mistral:latest            [11/12] Add chunk()                                      fail   179.2s  
+openai:mistral:latest            [12/12] Add clamp()                                      fail    85.9s  
+                                 -> 0/12
+
+12 attempts -> results/main-openai-mistral-latest-toolbox.jsonl

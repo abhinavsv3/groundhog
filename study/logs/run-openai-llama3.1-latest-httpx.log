@@ -1,0 +1,14 @@
+1 models x 8 tasks x 1 repeats = 8 attempts
+resuming: 0 already recorded, 8 to run
+
+openai:llama3.1:latest           [1/8] Handle empty zstd responses (#3412                 fail    74.3s  
+openai:llama3.1:latest           [2/8] add socks5h proxy support (#3178)                  fail   207.6s  
+openai:llama3.1:latest           [3/8] made dependencies on certifi and h                 fail    78.7s  
+openai:llama3.1:latest           [4/8] Just use default `safe=...` charac                 fail    49.4s  
+openai:llama3.1:latest           [5/8] Review urlescape percent-safe set,                 fail   263.0s  
+openai:llama3.1:latest           [6/8] Review URL percent escaping sets,                  fail   484.3s  
+openai:llama3.1:latest           [7/8] Ensure JSON representation is comp                 fail   268.6s  
+openai:llama3.1:latest           [8/8] Improve InvalidURL error message.                  fail   284.7s  
+                                 -> 0/8
+
+8 attempts -> results/main-openai-llama3.1-latest-httpx.jsonl
