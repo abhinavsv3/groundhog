@@ -10,7 +10,8 @@ USAGE = """groundhog -- replay your git history as a regression test for coding 
   groundhog mine     <repo>   find commits that changed source and tests together
   groundhog validate <repo>   keep only the ones that fail without the fix
   groundhog run      <repo>   run agents against the validated tasks
-  groundhog report            print the table and build the leaderboard page
+  groundhog report            print the table; --markdown / --json / --site for other forms
+  groundhog badge             write a shields.io badge JSON from a results file
   groundhog compare  <a> <b>  paired comparison of two runs, for CI and ablations
   groundhog export   <repo>   write validated tasks in SWE-bench instance format
   groundhog demo              see all of the above run end to end, no API key needed
@@ -37,6 +38,8 @@ def main() -> int:
         from .compare import main as run_it
     elif command == "export":
         from .export import main as run_it
+    elif command == "badge":
+        from .badge import main as run_it
     elif command == "demo":
         from .demo import main as run_it
     else:

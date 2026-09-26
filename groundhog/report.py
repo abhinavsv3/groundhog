@@ -285,6 +285,69 @@ def overstatement(rows: list[dict]) -> None:
           f"Patches are in results/patches/.{RESET}")
 
 
+def markdown(rows: list[dict], records: list[dict], title: str = "") -> str:
+    """The report as GitHub-flavoured Markdown, for PR comments and READMEs.
+
+    No colour codes, no alignment padding: the place people want to put a
+    result is a pull request, and a terminal table pasted there is garbage.
+    """
+    lines: list[str] = []
+    if title:
+        lines += [f"### {title}", ""]
+    if not rows:
+        return "\n".join(lines + ["_no results_", ""])
+
+    lines += ["| Model | Solved | Pass rate | 95% CI | F2P-only | Collateral | Cost | Median |",
+              "|---|---:|---:|---|---:|---|---:|---:|"]
+    for r in rows:
+        if r["unmeasured"]:
+            lines.append(
+                f"| {r['model']} | {r['solved']}/{r['total']} | _not measured_ | — | — | — | — "
+                f"| {r['median_seconds']:.0f}s |"
+            )
+            continue
+        gap = r["f2p_only_solved"] - r["solved"]
+        f2p = f"{r['f2p_only_solved']}/{r['total']}" + (
+            f" (+{gap / r['total'] * 100:.0f}pts)" if gap > 0 else "")
+        collateral = (f"{r['collateral_attempts']} broke {r['collateral_tests_broken']}"
+                      if r["collateral_attempts"] else "0")
+        lines.append(
+            f"| {r['model']} | {r['solved']}/{r['total']} | {r['pass_rate'] * 100:.0f}% "
+            f"| {r['ci_low'] * 100:.0f}% – {r['ci_high'] * 100:.0f}% | {f2p} | {collateral} "
+            f"| {money(r['cost'])} | {r['median_seconds']:.0f}s |"
+        )
+
+    silent = [r for r in rows if r["unmeasured"]]
+    for r in silent:
+        lines += ["", f"> **{r['model']}**: {r['silent']} of {r['total']} attempts parsed no tool "
+                      f"call. That is a failed measurement, not a 0% score; it is excluded."]
+
+    ranked = [r for r in rows if not r["unmeasured"]]
+    if len(ranked) >= 2 and ranked[0]["ci_low"] < ranked[1]["ci_high"]:
+        lines += ["", "> The top two confidence intervals overlap; this ordering is not a result."]
+    if any(r["f2p_only_solved"] > r["solved"] for r in ranked):
+        lines += ["", "> **F2P-only** is what a harness that checks only the target tests would "
+                      "report. **Pass rate** also requires every previously-passing test to still "
+                      "pass and the test files to be untouched. The gap is agents that did the "
+                      "task and broke something else doing it."]
+
+    tasks = sorted({r["task_id"]: r["subject"] for r in records}.items())
+    models = [r["model"] for r in rows]
+    unmeasured = {r["model"] for r in rows if r["unmeasured"]}
+    lookup = {(r["model"], r["task_id"]): r["solved"] for r in records}
+    lines += ["", "<details><summary>Per task</summary>", "",
+              "| Task | " + " | ".join(label(m) for m in models) + " |",
+              "|---|" + "|".join(":---:" for _ in models) + "|"]
+    for task_id, subject in tasks:
+        cells = []
+        for m in models:
+            ok = lookup.get((m, task_id))
+            cells.append("—" if m in unmeasured or ok is None else ("✅" if ok else "❌"))
+        lines.append(f"| {subject.replace('|', chr(92) + '|')[:60]} | " + " | ".join(cells) + " |")
+    lines += ["", "</details>", ""]
+    return "\n".join(lines)
+
+
 def write_site(rows: list[dict], records: list[dict], repo: str, out: Path, template: Path) -> None:
     payload = {
         "repo": repo,
@@ -405,6 +468,11 @@ def main() -> int:
     ap.add_argument("--tasks", type=Path, help="validated tasks, for the change-shape breakdown")
     ap.add_argument("--cutoff", action="append", default=[], metavar="NAME=YYYY-MM-DD",
                     help="training cutoff for a model, for the contamination split")
+    ap.add_argument("--markdown", type=Path, metavar="FILE",
+                    help="also write the report as GitHub Markdown (- for stdout)")
+    ap.add_argument("--json", type=Path, metavar="FILE",
+                    help="also write the summarised rows as JSON (- for stdout)")
+    ap.add_argument("--title", default="", help="heading for the Markdown report")
     cfg = ap.parse_args()
 
     if not cfg.results.exists():
@@ -412,8 +480,23 @@ def main() -> int:
         return 1
     records = [json.loads(l) for l in cfg.results.read_text().splitlines() if l.strip()]
     rows = summarise(records)
+    if cfg.markdown == Path("-") or cfg.json == Path("-"):
+        # stdout is the artifact; keep the terminal table off it.
+        if cfg.markdown == Path("-"):
+            print(markdown(rows, records, cfg.title))
+        if cfg.json == Path("-"):
+            print(json.dumps(rows, indent=2))
+        return 0
     print_table(rows, records)
     overstatement(rows)
+    if cfg.markdown:
+        cfg.markdown.parent.mkdir(parents=True, exist_ok=True)
+        cfg.markdown.write_text(markdown(rows, records, cfg.title))
+        print(f"wrote {cfg.markdown}")
+    if cfg.json:
+        cfg.json.parent.mkdir(parents=True, exist_ok=True)
+        cfg.json.write_text(json.dumps(rows, indent=2))
+        print(f"wrote {cfg.json}")
 
     if cfg.tasks and cfg.tasks.exists():
         tasks = {}

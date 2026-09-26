@@ -233,3 +233,75 @@ class TestOverstatement:
         assert (row["f2p_only_solved"], row["solved"]) == (6, 3)
         assert (row["collateral_attempts"], row["collateral_tests_broken"]) == (3, 14)
         assert rows["openai:qwen3:8b"]["collateral_attempts"] == 0
+
+
+class TestMarkdownAndBadge:
+    @staticmethod
+    def records():
+        mk = TestOverstatement.attempt
+        rows = [mk("ollama:good", True, True), mk("ollama:good", False, False),
+                mk("ollama:sloppy", False, True, broke=3), mk("ollama:sloppy", False, False)]
+        for i, r in enumerate(rows):
+            r["task_id"] = f"t{i % 2}"
+            r["subject"] = "Fix | a thing" if i % 2 else "Add x"
+        return rows
+
+    def test_markdown_has_no_escape_codes_and_escapes_pipes(self):
+        from groundhog.report import markdown, summarise
+        text = markdown(summarise(self.records()), self.records(), title="Nightly")
+        assert "\033[" not in text
+        assert text.startswith("### Nightly")
+        assert "| ollama:good | 1/2 | 50% |" in text
+        assert "1 broke 3" in text
+        assert "Fix \\| a thing" in text
+        assert "✅" in text and "❌" in text
+        assert "F2P-only** is what" in text
+
+    def test_markdown_marks_unmeasured_models(self):
+        from groundhog.report import markdown, summarise
+        recs = self.records()
+        for r in recs:
+            r["tools"] = {"calls": 0}
+        text = markdown(summarise(recs), recs)
+        assert "_not measured_" in text
+        assert "failed measurement" in text
+
+    def test_badge_uses_best_measured_model(self):
+        from groundhog.badge import badge
+        from groundhog.report import summarise
+        out = badge(summarise(self.records()), None, "agent pass rate")
+        assert out["schemaVersion"] == 1
+        assert out["message"].startswith("50% (1/2)")
+        assert "good" in out["message"]
+        assert out["color"] == "green"
+
+    def test_badge_for_one_model_by_short_name(self):
+        from groundhog.badge import badge
+        from groundhog.report import summarise
+        out = badge(summarise(self.records()), "sloppy", "rate")
+        assert out["message"] == "0% (0/2)"
+        assert out["color"] == "red"
+
+    def test_badge_refuses_an_unmeasured_model(self):
+        from groundhog.badge import badge
+        from groundhog.report import summarise
+        recs = self.records()
+        for r in recs:
+            r["tools"] = {"calls": 0}
+        out = badge(summarise(recs), None, "rate")
+        assert out["message"] == "not measured"
+        assert out["isError"]
+
+    def test_cli_writes_both_files(self, tmp_path):
+        import json as _json
+        import subprocess, sys
+        results = tmp_path / "r.jsonl"
+        results.write_text("\n".join(_json.dumps(r) for r in self.records()) + "\n")
+        subprocess.run([sys.executable, "-m", "groundhog", "report", "--results", str(results),
+                        "--markdown", str(tmp_path / "r.md"), "--json", str(tmp_path / "r.json")],
+                       check=True, capture_output=True)
+        assert "| Model |" in (tmp_path / "r.md").read_text()
+        assert _json.loads((tmp_path / "r.json").read_text())[0]["model"] == "ollama:good"
+        subprocess.run([sys.executable, "-m", "groundhog", "badge", "--results", str(results),
+                        "--out", str(tmp_path / "b.json")], check=True, capture_output=True)
+        assert _json.loads((tmp_path / "b.json").read_text())["schemaVersion"] == 1
