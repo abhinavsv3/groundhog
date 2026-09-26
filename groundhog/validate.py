@@ -103,6 +103,27 @@ def git(repo: Path, *args: str, check: bool = True) -> str:
 # pytest -v prints "path/to/test.py::test_name PASSED" (sometimes with params).
 TEST_LINE = re.compile(r"^(\S+::\S+?)\s+(PASSED|FAILED|ERROR|XFAIL|XPASS|SKIPPED)", re.M)
 
+# unittest -v prints "test_add (tests.test_calc.TestCalc.test_add) ... ok" on
+# 3.11+, and "test_add (tests.test_calc.TestCalc) ... ok" before that.
+UNITTEST_LINE = re.compile(
+    r"^(?P<method>\w+) \((?P<qual>[\w.]+)\)(?: \([^)]*\))? \.\.\. "
+    r"(?P<status>ok|FAIL|ERROR|skipped(?: .*)?|expected failure|unexpected success)\s*$", re.M)
+
+
+def unittest_outcomes(output: str) -> dict[str, str]:
+    """Per-test outcomes from `python -m unittest -v`, named module.Class::method."""
+    results: dict[str, str] = {}
+    for m in UNITTEST_LINE.finditer(output):
+        qual = m["qual"]
+        if qual.endswith("." + m["method"]):  # 3.11+ repeats the method in the qualname
+            qual = qual[: -len(m["method"]) - 1]
+        status = m["status"]
+        results[f"{qual}::{m['method']}"] = {
+            "ok": "PASSED", "FAIL": "FAILED", "ERROR": "ERROR",
+            "expected failure": "XFAIL", "unexpected success": "XPASS",
+        }.get(status, "SKIPPED" if status.startswith("skipped") else status.upper())
+    return results
+
 
 def js_outcomes(output: str) -> dict[str, str]:
     """Parse vitest/jest JSON output. Both use the same result shape."""
@@ -221,8 +242,18 @@ def rust_outcomes(output: str) -> dict[str, str]:
     return results
 
 
-def test_targets(language: str, test_files: list[str]) -> str:
+def module_path(path: str) -> str:
+    """tests/test_calc.py -> tests.test_calc, which is what unittest wants."""
+    parts = list(Path(path).with_suffix("").parts)
+    if parts and parts[0] == "src":
+        parts = parts[1:]
+    return ".".join(parts)
+
+
+def test_targets(language: str, test_files: list[str], test_cmd: str = "") -> str:
     """How to name the tests to run, for this language's test runner."""
+    if language == "python" and "unittest" in test_cmd:
+        return " ".join(module_path(f) for f in test_files)
     if language == "go":
         # Go runs packages, not files.
         dirs = sorted({str(Path(f).parent) for f in test_files})
@@ -244,8 +275,9 @@ def test_targets(language: str, test_files: list[str]) -> str:
 
 
 def test_outcomes(output: str) -> dict[str, str]:
-    """Parse per-test results out of a pytest run."""
-    return {name: status for name, status in TEST_LINE.findall(output)}
+    """Parse per-test results out of a pytest run, or a unittest one."""
+    found = {name: status for name, status in TEST_LINE.findall(output)}
+    return found or unittest_outcomes(output)
 
 
 def passing(output: str, language: str = "python") -> set[str]:
@@ -261,8 +293,8 @@ def verbose_form(cmd: str, language: str) -> str:
     the rest). `go test -json` is already per-test, and rewriting pytest flags
     into it would produce nonsense.
     """
-    if language in ("go", "javascript", "rust"):
-        return cmd  # already per-test via -json / --reporter=json / cargo's own lines
+    if language in ("go", "javascript", "rust") or "unittest" in cmd:
+        return cmd  # already per-test via -json / --reporter=json / cargo's own lines / -v
     return cmd.replace(" -x ", " ").replace(" -q", "") + " -v --tb=no"
 
 
@@ -401,7 +433,7 @@ def validate_one(
         if language == "javascript":
             link_node_modules(repo, tree)
 
-        test_cmd = cfg.test_cmd.format(tests=test_targets(language, task["test_files"]))
+        test_cmd = cfg.test_cmd.format(tests=test_targets(language, task["test_files"], cfg.test_cmd))
         # PASS_TO_PASS scope. "file" watches only the task's own test files,
         # which is cheap and one file wide -- an agent that breaks a different
         # module goes unnoticed. "full" watches the whole suite.

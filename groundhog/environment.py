@@ -178,6 +178,20 @@ def uses_pytest(repo: Path, pyproject: dict, requirement_text: str) -> bool:
     return "pytest" in tox
 
 
+UNITTEST_CLASS = re.compile(r"\bclass\s+\w+\s*\([^)]*unittest\.TestCase|\bfrom\s+unittest\s+import\s+.*\bTestCase\b")
+
+
+def uses_unittest(repo: Path) -> bool:
+    """Test files subclass unittest.TestCase and nothing points at pytest."""
+    candidates = list(repo.glob("test*.py")) + list(repo.glob("test*/**/*.py")) + list(repo.glob("**/test_*.py"))
+    for path in candidates[:200]:
+        if "node_modules" in path.parts or ".venv" in path.parts:
+            continue
+        if UNITTEST_CLASS.search(_read(path)):
+            return True
+    return False
+
+
 def installer() -> list[str]:
     """Prefer uv when it is available -- it is dramatically faster."""
     if shutil.which("uv"):
@@ -337,14 +351,24 @@ def detect(repo: Path) -> Plan:
         install.append(" ".join([*pip, "-r", rel]))
         evidence.append(rel)
 
+    test_cmd = "python -m pytest {tests} -x -q"
     if not uses_pytest(repo, pyproject, requirement_text):
-        notes.append("no pytest signal found; installing it anyway and using it")
-    install.append(" ".join([*pip, "pytest"]))
+        if uses_unittest(repo):
+            # pytest runs TestCase classes too, but a repo built around
+            # unittest may rely on its own runner, loaders or setup.cfg
+            # test_suite; use the runner the repo actually uses.
+            test_cmd = "python -m unittest -v {tests}"
+            notes.append("no pytest signal; tests subclass unittest.TestCase, using python -m unittest")
+        else:
+            notes.append("no pytest signal found; installing it anyway and using it")
+            install.append(" ".join([*pip, "pytest"]))
+    else:
+        install.append(" ".join([*pip, "pytest"]))
 
     return Plan(
         language="python",
         install=install,
-        test_cmd="python -m pytest {tests} -x -q",
+        test_cmd=test_cmd,
         evidence=evidence,
         notes=notes,
     )

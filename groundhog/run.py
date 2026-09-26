@@ -156,7 +156,7 @@ class Workspace:
         self.test_files = set(task["test_files"])
         from .validate import test_targets
         self.test_cmd = test_cmd.format(
-            tests=test_targets(task.get("language", "python"), task["test_files"])
+            tests=test_targets(task.get("language", "python"), task["test_files"], test_cmd)
         )
         self.touched: list[str] = []
         self.stats = ToolStats()
