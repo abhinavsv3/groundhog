@@ -7,6 +7,7 @@ import sys
 
 USAGE = """groundhog -- replay your git history as a regression test for coding agents
 
+  groundhog bench    <repo>   mine, validate, run and report in one go (start here)
   groundhog mine     <repo>   find commits that changed source and tests together
   groundhog validate <repo>   keep only the ones that fail without the fix
   groundhog run      <repo>   run agents against the validated tasks
@@ -28,7 +29,9 @@ def main() -> int:
         return 0
 
     command, sys.argv = sys.argv[1], [f"groundhog {sys.argv[1]}", *sys.argv[2:]]
-    if command == "mine":
+    if command == "bench":
+        from .bench import main as run_it
+    elif command == "mine":
         from .mine import main as run_it
     elif command == "validate":
         from .validate import main as run_it
