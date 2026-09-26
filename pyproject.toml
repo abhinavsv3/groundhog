@@ -27,6 +27,9 @@ Study = "https://scalingthoughts.com/groundhog/study.html"
 
 [project.scripts]
 groundhog = "groundhog.__main__:main"
+# uvx runs the executable named after the package, so `uvx groundhog-eval`
+# needs this alias. Without it uv refuses: "not provided by package".
+groundhog-eval = "groundhog.__main__:main"
 
 [build-system]
 requires = ["setuptools>=61"]

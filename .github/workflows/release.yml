@@ -21,8 +21,11 @@ jobs:
       - run: uv build
       - run: |
           # The wheel must run the demo on its own: that is the whole promise.
+          # Use the README's command name, groundhog-eval, so the quickstart
+          # is what gets tested.
           uvx --from dist/*.whl groundhog --version
-          uvx --from dist/*.whl groundhog demo --limit 1
+          uvx --from dist/*.whl groundhog-eval --version
+          uvx --from dist/*.whl groundhog-eval demo --limit 1
       - uses: actions/upload-artifact@v4
         with:
           name: dist
