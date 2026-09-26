@@ -170,3 +170,49 @@ class TestSampleAndPrompt:
         assert proc.returncode == 0, proc.stderr
         assert "sampled 2 tasks with seed 3" in proc.stderr
         assert len((tmp_path / "o.jsonl").read_text().splitlines()) == 2
+
+
+class TestJobs:
+    def run_cli(self, repo, tasks, out, *extra):
+        import os, subprocess
+        env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}
+        return subprocess.run([sys.executable, "-m", "groundhog", "run", str(repo), "--tasks", str(tasks),
+                               "--out", str(out), "--no-auto-env",
+                               "--test-cmd", f"{sys.executable} -m pytest {{tests}} -q", *extra],
+                              capture_output=True, text=True, env=env)
+
+    def test_parallel_produces_the_same_records_as_sequential(self, fixed_repo, tmp_path):
+        import json
+        repo, task = fixed_repo
+        tasks = tmp_path / "t.jsonl"
+        tasks.write_text("".join(json.dumps({**task, "subject": f"Add double {c}"}) + "\n" for c in "abcdef"))
+        fix = f"git checkout {task['sha']} -- calc.py"
+        seq = self.run_cli(repo, tasks, tmp_path / "seq.jsonl", "--agent-cmd", fix, "--models", "fixer")
+        par = self.run_cli(repo, tasks, tmp_path / "par.jsonl", "--agent-cmd", fix, "--models", "fixer",
+                           "--jobs", "4", "--repeats", "2")
+        assert seq.returncode == 0, seq.stderr
+        assert par.returncode == 0, par.stderr
+
+        def key(path):
+            rows = [json.loads(l) for l in path.read_text().splitlines()]
+            return sorted((r["subject"], r["run_index"], r["solved"], r["agent"]) for r in rows)
+
+        assert len(key(tmp_path / "par.jsonl")) == 12
+        assert {k[2] for k in key(tmp_path / "par.jsonl")} == {True}
+        assert [k for k in key(tmp_path / "par.jsonl") if k[1] == 0] == key(tmp_path / "seq.jsonl")
+        assert "fixer                            -> 12/12" in par.stderr
+        assert "-> 6/6" in seq.stderr
+
+    def test_parallel_resume_skips_what_landed(self, fixed_repo, tmp_path):
+        import json
+        repo, task = fixed_repo
+        tasks = tmp_path / "t.jsonl"
+        tasks.write_text("".join(json.dumps({**task, "subject": f"T {c}"}) + "\n" for c in "abc"))
+        out = tmp_path / "o.jsonl"
+        self.run_cli(repo, tasks, out, "--agent-cmd", "true", "--jobs", "3")
+        again = self.run_cli(repo, tasks, out, "--agent-cmd", "true", "--jobs", "3", "--resume")
+        # The three copies share one sha, so resume sees one planned key; what
+        # matters is that nothing runs twice and nothing is appended.
+        assert "already recorded" in again.stderr
+        assert "0 attempts ->" in again.stderr
+        assert len(out.read_text().splitlines()) == 3

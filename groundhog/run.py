@@ -16,7 +16,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -39,6 +41,11 @@ Rules:
 - When the tests pass, say DONE and stop."""
 
 MAX_FILE_BYTES = 120_000
+
+# `git worktree add` and `remove` on the same repository race on .git/index.lock
+# and fail intermittently when run concurrently. Everything else an attempt
+# does happens inside its own worktree and needs no coordination.
+WORKTREE_LOCK = threading.Lock()
 
 
 @dataclass
@@ -156,7 +163,8 @@ class Workspace:
         self.turn = 0
         self.known_tools = {"list_files", "read_file", "write_file", "run_tests"}
 
-        git(repo, "worktree", "add", "--detach", "--quiet", str(self.tree), task["parent"])
+        with WORKTREE_LOCK:
+            git(repo, "worktree", "add", "--detach", "--quiet", str(self.tree), task["parent"])
         git(self.tree, "checkout", task["sha"], "--", *task["test_files"])
         self.env = {"PYTHONPATH": ":".join(str(r) for r in source_roots(self.tree))}
         if task.get("language") == "javascript":
@@ -185,7 +193,8 @@ class Workspace:
         ]
 
     def close(self) -> None:
-        git(self.repo, "worktree", "remove", "--force", str(self.tree), check=False)
+        with WORKTREE_LOCK:
+            git(self.repo, "worktree", "remove", "--force", str(self.tree), check=False)
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def _resolve(self, rel: str) -> Path | None:
@@ -504,6 +513,108 @@ def attempt(repo: Path, task: dict, model: str, cfg: argparse.Namespace, run_ind
     return record
 
 
+def execute(cfg: argparse.Namespace, tasks: list[dict], models: list[str],
+            done: set[tuple[str, str, int]], spent: float, fh) -> tuple[list[Attempt], float, int, set[str]]:
+    """Run every planned attempt, --jobs at a time, writing each record as it lands.
+
+    One writer, one lock, flushed per record, so --resume after a hard kill
+    sees everything that finished. The spend ceiling is checked before each
+    dispatch rather than after, so it is overshot by at most the attempts in
+    flight, never by a whole batch.
+    """
+    planned = [
+        (model, run_index, i, task)
+        for model in models
+        for run_index in range(cfg.repeats)
+        for i, task in enumerate(tasks, 1)
+        if (task["sha"][:12], model, run_index) not in done
+    ]
+    records: list[Attempt] = []
+    unpriced: set[str] = set()
+    skipped_for_budget = 0
+    tally: dict[str, list[int]] = {m: [0, 0] for m in models}  # solved, attempted
+    lock = threading.Lock()
+
+    def label(model: str, run_index: int, i: int, task: dict) -> str:
+        tag = f" r{run_index + 1}" if cfg.repeats > 1 else ""
+        return f"{model:<32}{tag} [{i}/{len(tasks)}] {task['subject'][:34]}"
+
+    def over_budget() -> bool:
+        return cfg.max_spend is not None and spent >= cfg.max_spend
+
+    def land(rec: Attempt) -> None:
+        nonlocal spent
+        with lock:
+            records.append(rec)
+            fh.write(json.dumps(asdict(rec)) + "\n")
+            fh.flush()
+            if rec.cost_usd is None:
+                # A ceiling that silently never triggers is worse than none,
+                # so say so rather than assuming zero.
+                unpriced.add(rec.model)
+            else:
+                spent += rec.cost_usd
+            tally[rec.model][0] += rec.solved
+            tally[rec.model][1] += 1
+
+    def mark(rec: Attempt) -> str:
+        return "PASS" if rec.solved else ("ERROR" if rec.error else "fail")
+
+    if cfg.jobs <= 1:
+        current_model = None
+        for model, run_index, i, task in planned:
+            if model != current_model:
+                if current_model is not None:
+                    s_, a_ = tally[current_model]
+                    print(f"{'':<32} -> {s_}/{a_}\n", file=sys.stderr)
+                current_model = model
+            print(f"{label(model, run_index, i, task):<88}", end="", flush=True, file=sys.stderr)
+            if over_budget():
+                skipped_for_budget += 1
+                print("  SKIPPED (budget)", file=sys.stderr)
+                continue
+            rec = attempt(cfg.repo, task, model, cfg, run_index)
+            land(rec)
+            print(f"  {mark(rec):<5} {rec.seconds:>6.1f}s  {rec.error[:40]}", file=sys.stderr)
+        if current_model is not None:
+            s_, a_ = tally[current_model]
+            print(f"{'':<32} -> {s_}/{a_}\n", file=sys.stderr)
+        return records, spent, skipped_for_budget, unpriced
+
+    # Parallel: keep --jobs attempts in flight; dispatch one more as each lands.
+    queue = list(planned)
+    in_flight: dict = {}
+    with ThreadPoolExecutor(max_workers=cfg.jobs) as pool:
+        while queue or in_flight:
+            while queue and len(in_flight) < cfg.jobs:
+                model, run_index, i, task = queue.pop(0)
+                if over_budget():
+                    skipped_for_budget += 1
+                    continue
+                future = pool.submit(attempt, cfg.repo, task, model, cfg, run_index)
+                in_flight[future] = (model, run_index, i, task)
+            if not in_flight:
+                break
+            finished, _ = wait(list(in_flight), return_when=FIRST_COMPLETED)
+            for future in finished:
+                model, run_index, i, task = in_flight.pop(future)
+                try:
+                    rec = future.result()
+                except Exception as exc:  # attempt() catches its own; this is a harness bug
+                    rec = Attempt(repo=cfg.repo.name, task_id=task["sha"][:12], subject=task["subject"],
+                                  model=model, run_index=run_index,
+                                  error=f"harness: {type(exc).__name__}: {exc}"[:200])
+                land(rec)
+                with lock:
+                    print(f"{label(model, run_index, i, task):<88}  {mark(rec):<5} "
+                          f"{rec.seconds:>6.1f}s  {rec.error[:40]}", file=sys.stderr)
+    for model in models:
+        s_, a_ = tally[model]
+        print(f"{model:<32} -> {s_}/{a_}", file=sys.stderr)
+    print(file=sys.stderr)
+    return records, spent, skipped_for_budget, unpriced
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("repo", type=repo_arg, help="path or URL")
@@ -540,6 +651,8 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--repeats", type=int, default=1,
                     help="attempts per task; >1 is required for any claim about a small effect")
+    ap.add_argument("--jobs", type=int, default=1, metavar="N",
+                    help="attempts to run concurrently; each has its own worktree")
     ap.add_argument("--sample", type=int, default=0, metavar="N",
                     help="a reproducible random subset of N tasks (see --seed)")
     ap.add_argument("--seed", type=int, default=0, help="seed for --sample; same seed, same tasks")
@@ -613,46 +726,17 @@ def main() -> int:
     print(file=sys.stderr)
 
     cfg.out.parent.mkdir(parents=True, exist_ok=True)
-    records: list[Attempt] = []
     spent = spent_so_far(cfg.out) if cfg.resume else 0.0
-    skipped_for_budget = 0
-    unpriced: set[str] = set()
-
     if cfg.max_spend is not None and spent:
         print(f"budget: ${spent:.2f} already spent, ceiling ${cfg.max_spend:.2f}\n",
               file=sys.stderr)
 
+    if cfg.jobs > 1 and any(m.startswith(("ollama:", "llamacpp:", "lmstudio:")) for m in models):
+        print(f"note: --jobs {cfg.jobs} with a local model server; Ollama serialises requests "
+              f"to one model, so this mostly overlaps test runs, not generation\n", file=sys.stderr)
+
     with cfg.out.open("a" if cfg.resume else "w") as fh:
-        for model in models:
-            solved = attempted = 0
-            for run_index in range(cfg.repeats):
-                for i, task in enumerate(tasks, 1):
-                    if (task["sha"][:12], model, run_index) in done:
-                        continue
-                    tag = f" r{run_index + 1}" if cfg.repeats > 1 else ""
-                    label = f"{model:<32}{tag} [{i}/{len(tasks)}] {task['subject'][:34]}"
-                    print(f"{label:<88}", end="", flush=True, file=sys.stderr)
-                    if cfg.max_spend is not None and spent >= cfg.max_spend:
-                        skipped_for_budget += 1
-                        print("  SKIPPED (budget)", file=sys.stderr)
-                        continue
-
-                    rec = attempt(cfg.repo, task, model, cfg, run_index)
-                    records.append(rec)
-                    fh.write(json.dumps(asdict(rec)) + "\n")
-                    fh.flush()
-
-                    if rec.cost_usd is None:
-                        # A ceiling that silently never triggers is worse than
-                        # none, so say so rather than assuming zero.
-                        unpriced.add(rec.model)
-                    else:
-                        spent += rec.cost_usd
-                    solved += rec.solved
-                    attempted += 1
-                    mark = "PASS" if rec.solved else ("ERROR" if rec.error else "fail")
-                    print(f"  {mark:<5} {rec.seconds:>6.1f}s  {rec.error[:40]}", file=sys.stderr)
-            print(f"{'':<32} -> {solved}/{attempted}\n", file=sys.stderr)
+        records, spent, skipped_for_budget, unpriced = execute(cfg, tasks, models, done, spent, fh)
 
     print(f"{len(records)} attempts -> {cfg.out}", file=sys.stderr)
     if cfg.max_spend is not None:
