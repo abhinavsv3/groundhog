@@ -192,12 +192,54 @@ def go_outcomes(output: str) -> dict[str, str]:
     return {k: ("PASSED" if v.startswith("PASS") else v) for k, v in results.items()}
 
 
+RUST_TEST_LINE = re.compile(r"^test (?P<name>\S+) \.\.\. (?P<status>ok|FAILED|ignored)\s*$", re.M)
+RUST_TARGET_LINE = re.compile(r"^\s+Running (?:unittests )?(?P<path>\S+)")
+
+
+def rust_outcomes(output: str) -> dict[str, str]:
+    """Parse stable `cargo test` text into per-test outcomes.
+
+    Names are qualified by the target being run (`tests/parse.rs` ->
+    `parse::`), because two integration test files may each define
+    `test_basic` and FAIL_TO_PASS sets must not collide. A crate that fails
+    to compile prints no `test ... ` lines, so its outcomes are empty and,
+    as with Go, the whole target lands in FAIL_TO_PASS -- which is why Rust
+    defaults to full PASS_TO_PASS scope.
+    """
+    results: dict[str, str] = {}
+    target = ""
+    for line in output.splitlines():
+        m = RUST_TARGET_LINE.match(line)
+        if m:
+            target = Path(m["path"].split(" ")[0]).stem
+            continue
+        m = RUST_TEST_LINE.match(line)
+        if not m:
+            continue
+        status = {"ok": "PASSED", "FAILED": "FAILED", "ignored": "SKIPPED"}[m["status"]]
+        results[f"{target}::{m['name']}" if target else m["name"]] = status
+    return results
+
+
 def test_targets(language: str, test_files: list[str]) -> str:
     """How to name the tests to run, for this language's test runner."""
     if language == "go":
         # Go runs packages, not files.
         dirs = sorted({str(Path(f).parent) for f in test_files})
         return " ".join(f"./{d}" if d != "." else "." for d in dirs)
+    if language == "rust":
+        # tests/<name>.rs is an integration test target: --test <name>.
+        # Anything deeper (tests/common/mod.rs, a workspace member's tests/)
+        # is a module of some target we cannot name from the path alone, so
+        # run every test rather than guess and silently run none.
+        targets = []
+        for f in test_files:
+            parts = Path(f).parts
+            if len(parts) == 2 and parts[0] == "tests" and f.endswith(".rs"):
+                targets.append(f"--test {Path(f).stem}")
+            else:
+                return ""
+        return " ".join(sorted(set(targets)))
     return " ".join(test_files)
 
 
@@ -207,7 +249,7 @@ def test_outcomes(output: str) -> dict[str, str]:
 
 
 def passing(output: str, language: str = "python") -> set[str]:
-    parser = {"go": go_outcomes, "javascript": js_outcomes}.get(language, test_outcomes)
+    parser = {"go": go_outcomes, "javascript": js_outcomes, "rust": rust_outcomes}.get(language, test_outcomes)
     outcomes = parser(output)
     return {n for n, st in outcomes.items() if st in ("PASSED", "XFAIL")}
 
@@ -219,8 +261,8 @@ def verbose_form(cmd: str, language: str) -> str:
     the rest). `go test -json` is already per-test, and rewriting pytest flags
     into it would produce nonsense.
     """
-    if language in ("go", "javascript"):
-        return cmd  # already per-test via -json / --reporter=json
+    if language in ("go", "javascript", "rust"):
+        return cmd  # already per-test via -json / --reporter=json / cargo's own lines
     return cmd.replace(" -x ", " ").replace(" -q", "") + " -v --tb=no"
 
 
@@ -365,7 +407,7 @@ def validate_one(
         # module goes unnoticed. "full" watches the whole suite.
         scope = getattr(cfg, "p2p_scope", None) or "file"
         env_cmd = getattr(cfg, "env_cmd", None)
-        p2p_cmd = cfg.test_cmd.format(tests="./..." if language == "go" else "") \
+        p2p_cmd = cfg.test_cmd.format(tests={"go": "./..."}.get(language, "")) \
             if scope == "full" else test_cmd
         # -v without -x: we need every test's outcome, not an early exit
         verbose_cmd = wrap(verbose_form(test_cmd, language), env_cmd)
@@ -478,10 +520,10 @@ def main() -> int:
                 # a missing function fails compilation, so every test in the
                 # package lands in FAIL_TO_PASS and PASS_TO_PASS is empty --
                 # zero protection against an agent breaking something else.
-                cfg.p2p_scope = "full" if plan.language == "go" else "file"
-                if plan.language == "go":
-                    print("using --p2p-scope full: Go compilation failures leave "
-                          "nothing for file scope to protect", file=sys.stderr)
+                cfg.p2p_scope = "full" if plan.language in ("go", "rust") else "file"
+                if plan.language in ("go", "rust"):
+                    print(f"using --p2p-scope full: {plan.language.capitalize()} compilation "
+                          "failures leave nothing for file scope to protect", file=sys.stderr)
             if cfg.test_cmd == ap.get_default("test_cmd"):
                 cfg.test_cmd = plan.test_cmd
             cfg.venv = ensure(cfg.repo, plan)

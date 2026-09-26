@@ -259,9 +259,29 @@ def detect_go(repo: Path) -> Plan | None:
     )
 
 
+def detect_rust(repo: Path) -> Plan | None:
+    """Rust, via cargo. Stable cargo has no JSON test output, so the runner's
+    text is parsed instead (rust_outcomes in validate.py).
+
+    Unit tests live inside the source file they test, which mining cannot
+    separate from the change under test; integration tests under tests/ are
+    what becomes a task. See docs/languages.md.
+    """
+    if not (repo / "Cargo.toml").is_file():
+        return None
+    return Plan(
+        language="rust",
+        install=["cargo fetch"],
+        # --no-fail-fast so every target reports, not just the first to fail.
+        test_cmd="cargo test --no-fail-fast {tests}",
+        evidence=["Cargo.toml"],
+        notes=["integration tests under tests/ only; in-file #[cfg(test)] modules cannot be mined"],
+    )
+
+
 def detect(repo: Path) -> Plan:
     """Figure out how to install this repo and run its tests."""
-    for probe in (detect_go, detect_js):
+    for probe in (detect_go, detect_rust, detect_js):
         plan = probe(repo)
         if plan is not None:
             return plan
@@ -276,8 +296,8 @@ def detect(repo: Path) -> Plan:
     if not has_python_manifest and not requirement_files:
         raise DetectionFailed(
             f"No supported project detected in {repo}.\n"
-            f"Looked for: go.mod, {', '.join(looked_for)}\n"
-            "Python and Go are supported. For anything else, pass --test-cmd "
+            f"Looked for: go.mod, Cargo.toml, package.json, {', '.join(looked_for)}\n"
+            "Python, Go, Rust and JavaScript are supported. For anything else, pass --test-cmd "
             "and --env-cmd explicitly, or see issues labelled 'language'."
         )
 
@@ -355,6 +375,14 @@ def ensure(repo: Path, plan: Plan | None = None, rebuild: bool = False, quiet: b
         # Go has no per-project interpreter to build; the module cache is global
         # and `go mod download` is idempotent.
         subprocess.run("go mod download", shell=True, cwd=str(repo),
+                       capture_output=True, text=True)
+        return None
+
+    if plan.language == "rust":
+        # Same shape as Go: a global registry cache, nothing per-project to
+        # build. The first `cargo test` in a worktree compiles; later ones
+        # reuse target/ inside that worktree.
+        subprocess.run("cargo fetch", shell=True, cwd=str(repo),
                        capture_output=True, text=True)
         return None
 
