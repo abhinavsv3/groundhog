@@ -258,6 +258,7 @@ def manifest(repo: Path, tasks: list[dict], cfg) -> dict:
         "mined_since": getattr(cfg, "since", None),
         "p2p_scope": getattr(cfg, "p2p_scope", "file"),
         "deduplicated": not getattr(cfg, "keep_duplicates", False),
+        "stability_runs": max(1, int(getattr(cfg, "stability", 1) or 1)),
         "hash": digest,
     }
 
@@ -392,6 +393,23 @@ def validate_one(
         was, now = passing(before.output, language), passing(after.output, language)
         fail_to_pass = sorted(now - was)
 
+        # A test that passes 70% of the time passes one check and then fails
+        # agents at random forever. In a benchmark that prints p-values that is
+        # noise dressed as signal, so the fixed state can be re-run and any
+        # test whose outcome moves disqualifies the task.
+        stability = max(1, int(getattr(cfg, "stability", 1) or 1))
+        flaky: set[str] = set()
+        for _ in range(stability - 1):
+            again = run(verbose_cmd, tree, cfg.timeout, env_path, pypath)
+            flaky |= passing(again.output, language) ^ now
+        if flaky:
+            verdict.update(
+                status="rejected",
+                reason=f"flaky: {len(flaky)} test(s) changed outcome across {stability} runs",
+                detail=", ".join(sorted(flaky)[:5]),
+            )
+            return verdict
+
         if scope == "full":
             # Re-run the whole suite in the fixed state: everything green here
             # must stay green, wherever in the repo it lives.
@@ -419,6 +437,7 @@ def validate_one(
             pass_to_pass=pass_to_pass,
             fail_seconds=round(before.duration, 1),
             pass_seconds=round(after.duration, 1),
+            stability_runs=stability,
             failure_excerpt=tail(before.output, 8),
         )
         return verdict
@@ -446,6 +465,8 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0, help="stop after N candidates")
     ap.add_argument("--keep-duplicates", action="store_true",
                     help="keep tasks defined by the same tests flipping")
+    ap.add_argument("--stability", type=int, default=1, metavar="N",
+                    help="run the fixed state N times and reject tasks whose tests flip (default 1)")
     cfg = ap.parse_args()
 
     if cfg.venv is None and not cfg.no_auto_env:
