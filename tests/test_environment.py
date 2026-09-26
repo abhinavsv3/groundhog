@@ -121,3 +121,25 @@ class TestFingerprint:
     def test_stable_for_identical_input(self, tmp_path):
         plan = self.make(tmp_path, '"hypothesis"')
         assert plan.fingerprint(tmp_path) == plan.fingerprint(tmp_path)
+
+
+class TestNoTomllib:
+    def test_missing_parser_is_said_out_loud(self, tmp_path, monkeypatch):
+        """On 3.10 without tomli, extras are missed; the plan must say so."""
+        from groundhog import environment
+        (tmp_path / "pyproject.toml").write_text(
+            '[project]\nname = "x"\n[project.optional-dependencies]\ntest = ["pytest", "hypothesis"]\n'
+        )
+        monkeypatch.setattr(environment, "_toml_parser", lambda: None)
+        plan = environment.detect(tmp_path)
+        assert any("NOT parsed" in n for n in plan.notes)
+        assert not any("[test]" in cmd for cmd in plan.install)
+
+    def test_with_a_parser_extras_are_found(self, tmp_path):
+        from groundhog import environment
+        (tmp_path / "pyproject.toml").write_text(
+            '[project]\nname = "x"\n[project.optional-dependencies]\ntest = ["pytest"]\n'
+        )
+        plan = environment.detect(tmp_path)
+        assert any(".[test]" in cmd for cmd in plan.install)
+        assert not any("NOT parsed" in n for n in plan.notes)

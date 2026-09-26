@@ -80,13 +80,31 @@ def _read(path: Path) -> str:
         return ""
 
 
-def _toml(text: str) -> dict:
+def _toml_parser():
+    """tomllib on 3.11+, tomli if someone installed it, else None."""
     try:
         import tomllib
-    except ModuleNotFoundError:  # pragma: no cover - py3.10
+        return tomllib
+    except ModuleNotFoundError:
+        try:
+            import tomli
+            return tomli
+        except ModuleNotFoundError:
+            return None
+
+
+NO_TOML_NOTE = ("pyproject.toml present but NOT parsed: this Python has no tomllib, so test "
+                "extras and [dependency-groups] were missed. `pip install tomli`, or run "
+                "Groundhog under Python 3.11+. Tasks rejected as \"environment problem\" "
+                "are probably this.")
+
+
+def _toml(text: str) -> dict:
+    parser = _toml_parser()
+    if parser is None:
         return {}
     try:
-        return tomllib.loads(text)
+        return parser.loads(text)
     except Exception:
         return {}
 
@@ -267,6 +285,11 @@ def detect(repo: Path) -> Plan:
     install: list[str] = []
     evidence: list[str] = []
     notes: list[str] = []
+
+    if pyproject_text and _toml_parser() is None:
+        # Silently installing bare "." here is the worst outcome: every task
+        # fails at validation with a message that blames the repository.
+        notes.append(NO_TOML_NOTE)
 
     if has_python_manifest:
         extras = test_extras(pyproject)
