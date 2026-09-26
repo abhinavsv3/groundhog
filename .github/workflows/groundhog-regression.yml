@@ -22,6 +22,9 @@ on:
 
 jobs:
   benchmark:
+    # This is an example for other repositories. Groundhog's own repo has no
+    # pinned task set or model key, so the run would only ever fail here.
+    if: github.repository != 'abhinavsv3/groundhog'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
