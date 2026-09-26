@@ -482,7 +482,11 @@ def attempt(repo: Path, task: dict, model: str, cfg: argparse.Namespace, run_ind
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("repo", type=Path)
-    ap.add_argument("--models", default="external", help="comma separated, e.g. anthropic:claude-opus-5,openai:gpt-5.2")
+    ap.add_argument("--models", default="external",
+                    help="comma separated, e.g. anthropic:claude-opus-5,ollama:qwen3:8b "
+                         "(see --list-providers)")
+    ap.add_argument("--list-providers", action="store_true",
+                    help="print every provider prefix with its endpoint and key variable")
     ap.add_argument("--tasks", type=Path, default=Path("tasks/validated.jsonl"))
     ap.add_argument("--out", type=Path, default=Path("results/results.jsonl"))
     ap.add_argument("--venv", type=Path, help="virtualenv to run tests inside (auto-built if omitted)")
@@ -505,6 +509,13 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--repeats", type=int, default=1,
                     help="attempts per task; >1 is required for any claim about a small effect")
+    if "--list-providers" in sys.argv:
+        from .models import describe_providers
+        rows = describe_providers()
+        width = max(len(r[0]) for r in rows) + 2
+        for prefix, url, unlock in rows:
+            print(f"{prefix:<{width}}{url:<62}{unlock}")
+        return 0
     cfg = ap.parse_args()
 
     if cfg.venv is None and not cfg.no_auto_env:

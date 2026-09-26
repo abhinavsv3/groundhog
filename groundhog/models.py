@@ -5,9 +5,14 @@ Deliberately stdlib-only. Groundhog is meant to be runnable five minutes after
 someone clones it, and every dependency is another reason a benchmark run dies
 on somebody's laptop.
 
-Models are named `provider:model`, e.g. `anthropic:claude-opus-5` or
-`openai:gpt-5.2`. Anything exposing an OpenAI-compatible API (OpenRouter,
-Together, Groq, vLLM, Ollama) works through the `openai` provider with
+Models are named `provider:model`, e.g. `anthropic:claude-opus-5`,
+`openai:gpt-5.2` or `ollama:qwen3:8b`. Every OpenAI-compatible host has a
+short name in PROVIDERS below with its base URL and key variable filled in,
+so a local model needs no environment at all:
+
+    groundhog run . --models ollama:qwen3:8b
+
+Anything not listed still works through `openai:` with
 GROUNDHOG_OPENAI_BASE_URL pointed at it.
 """
 
@@ -29,7 +34,20 @@ DEFAULT_PRICING: dict[str, tuple[float, float]] = {
     "claude-haiku-4-5": (1.0, 5.0),
     "gpt-5.2": (1.25, 10.0),
     "gpt-5-mini": (0.25, 2.0),
+    "deepseek-chat": (0.27, 1.10),
+    "deepseek-reasoner": (0.55, 2.19),
+    "gemini-2.5-pro": (1.25, 10.0),
+    "gemini-2.5-flash": (0.30, 2.50),
+    "grok-4": (3.0, 15.0),
+    "llama-3.3-70b": (0.59, 0.79),
+    "mistral-large": (2.0, 6.0),
+    "codestral": (0.30, 0.90),
 }
+
+# A model served from the user's own machine costs nothing per token. Recording
+# $0 rather than "unknown" keeps --max-spend honest: it means "this attempt
+# was free", not "we could not tell".
+FREE_PROVIDERS = {"ollama", "vllm", "lmstudio", "llamacpp"}
 
 
 def load_pricing() -> dict[str, tuple[float, float]]:
@@ -42,6 +60,9 @@ def load_pricing() -> dict[str, tuple[float, float]]:
 
 
 def price_of(model: str, usage: "Usage") -> float | None:
+    provider = model.split(":", 1)[0] if ":" in model else ""
+    if provider in FREE_PROVIDERS:
+        return 0.0
     prices = load_pricing()
     for name, (inp, out) in prices.items():
         if name in model:
@@ -236,15 +257,115 @@ class Anthropic(Provider):
         )
 
 
+@dataclass(frozen=True)
+class Host:
+    """One OpenAI-compatible endpoint: where it lives and how it is unlocked."""
+
+    name: str
+    base_url: str
+    key_var: str | None          # environment variable holding the API key
+    key_required: bool = True
+    local: bool = False          # served from this machine; no key, no cost
+    signup: str = ""             # where to get a key, for the error message
+
+    def key(self) -> str | None:
+        if self.key_var is None:
+            return None
+        return os.environ.get(self.key_var) or (
+            os.environ.get("GROUNDHOG_OPENAI_KEY") if self.name == "openai" else None
+        )
+
+
+HOSTS: dict[str, Host] = {
+    "openai": Host("openai", "https://api.openai.com/v1", "OPENAI_API_KEY",
+                   signup="https://platform.openai.com/api-keys"),
+    "ollama": Host("ollama", "http://localhost:11434/v1", "OLLAMA_API_KEY",
+                   key_required=False, local=True),
+    "vllm": Host("vllm", "http://localhost:8000/v1", "VLLM_API_KEY",
+                 key_required=False, local=True),
+    "lmstudio": Host("lmstudio", "http://localhost:1234/v1", None,
+                     key_required=False, local=True),
+    "llamacpp": Host("llamacpp", "http://localhost:8080/v1", None,
+                     key_required=False, local=True),
+    "openrouter": Host("openrouter", "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY",
+                       signup="https://openrouter.ai/keys"),
+    "groq": Host("groq", "https://api.groq.com/openai/v1", "GROQ_API_KEY",
+                 signup="https://console.groq.com/keys"),
+    "together": Host("together", "https://api.together.xyz/v1", "TOGETHER_API_KEY",
+                     signup="https://api.together.ai/settings/api-keys"),
+    "deepseek": Host("deepseek", "https://api.deepseek.com/v1", "DEEPSEEK_API_KEY",
+                     signup="https://platform.deepseek.com/api_keys"),
+    "gemini": Host("gemini", "https://generativelanguage.googleapis.com/v1beta/openai",
+                   "GEMINI_API_KEY", signup="https://aistudio.google.com/apikey"),
+    "xai": Host("xai", "https://api.x.ai/v1", "XAI_API_KEY",
+                signup="https://console.x.ai"),
+    "mistral": Host("mistral", "https://api.mistral.ai/v1", "MISTRAL_API_KEY",
+                    signup="https://console.mistral.ai/api-keys"),
+    "fireworks": Host("fireworks", "https://api.fireworks.ai/inference/v1", "FIREWORKS_API_KEY",
+                      signup="https://fireworks.ai/account/api-keys"),
+    "cerebras": Host("cerebras", "https://api.cerebras.ai/v1", "CEREBRAS_API_KEY",
+                     signup="https://cloud.cerebras.ai"),
+}
+
+
+def base_url_for(host: Host) -> str:
+    """The endpoint, honouring per-host and legacy overrides.
+
+    GROUNDHOG_<NAME>_BASE_URL overrides any host. GROUNDHOG_OPENAI_BASE_URL is
+    kept for the `openai:` provider because the study scripts use it.
+    """
+    override = os.environ.get(f"GROUNDHOG_{host.name.upper()}_BASE_URL")
+    if override:
+        return override.rstrip("/")
+    if host.name == "ollama" and os.environ.get("OLLAMA_HOST"):
+        # Ollama's own convention, e.g. OLLAMA_HOST=0.0.0.0:11434 or http://gpu-box:11434
+        raw = os.environ["OLLAMA_HOST"]
+        if not raw.startswith("http"):
+            raw = "http://" + raw
+        return raw.rstrip("/") + "/v1"
+    return host.base_url
+
+
+def check_reachable(host: Host, url: str) -> None:
+    """A local server that is not running should say so before any worktree is built.
+
+    Without this the first symptom is a connection error four retries and a
+    minute later, per task, once per model.
+    """
+    if not host.local:
+        return
+    probe = url.rsplit("/v1", 1)[0] + ("/api/tags" if host.name == "ollama" else "/v1/models")
+    try:
+        with urllib.request.urlopen(probe, timeout=3):
+            return
+    except Exception as exc:
+        hint = "start it with `ollama serve`" if host.name == "ollama" else "start the server"
+        raise ProviderError(
+            f"{host.name} is not answering at {url} ({type(exc).__name__}); {hint}, "
+            f"or point GROUNDHOG_{host.name.upper()}_BASE_URL at it"
+        ) from None
+
+
 class OpenAI(Provider):
+    """Any OpenAI-compatible chat endpoint. The Host says which one."""
+
+    host: Host = HOSTS["openai"]
+
     def __init__(self, model: str, system: str):
         super().__init__(model, system)
-        key = os.environ.get("OPENAI_API_KEY") or os.environ.get("GROUNDHOG_OPENAI_KEY")
-        if not key:
-            raise ProviderError("OPENAI_API_KEY is not set")
-        base = os.environ.get("GROUNDHOG_OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+        host = self.host
+        key = host.key()
+        if not key and host.key_required:
+            where = f" (get one at {host.signup})" if host.signup else ""
+            raise ProviderError(f"{host.key_var} is not set{where}")
+        base = base_url_for(host)
+        check_reachable(host, base)
         self.url = f"{base}/chat/completions"
-        self.headers = {"content-type": "application/json", "authorization": f"Bearer {key}"}
+        self.headers = {"content-type": "application/json",
+                        "authorization": f"Bearer {key or 'none'}"}
+        if host.name == "openrouter":
+            self.headers["HTTP-Referer"] = "https://github.com/abhinavsv3/groundhog"
+            self.headers["X-Title"] = "Groundhog"
         self.messages = [{"role": "system", "content": system}]
 
     def say(self, text: str) -> None:
@@ -306,7 +427,21 @@ class OpenAI(Provider):
             self.messages.append({"role": "tool", "tool_call_id": cid, "content": out[:20000]})
 
 
-PROVIDERS = {"anthropic": Anthropic, "openai": OpenAI}
+def _compatible(host: Host) -> type:
+    return type(host.name.capitalize(), (OpenAI,), {"host": host})
+
+
+PROVIDERS: dict[str, type] = {"anthropic": Anthropic}
+PROVIDERS.update({name: _compatible(host) for name, host in HOSTS.items()})
+
+
+def describe_providers() -> list[tuple[str, str, str]]:
+    """(spec prefix, endpoint, what unlocks it) for --list-providers and doctor."""
+    rows = [("anthropic:", "https://api.anthropic.com", "ANTHROPIC_API_KEY")]
+    for name, host in HOSTS.items():
+        unlock = "no key needed" if not host.key_required else (host.key_var or "")
+        rows.append((f"{name}:", base_url_for(host), unlock))
+    return rows
 
 
 def connect(spec: str, system: str) -> Provider:
