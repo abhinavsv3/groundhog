@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import pytest
 import sys
 from pathlib import Path
 
@@ -174,3 +175,61 @@ class TestUnmeasuredModels:
         payload = json.loads(out.read_text()[len("var data = "):-1])
         assert payload["models"][0]["unmeasured"] is True
         assert payload["models"][0]["silent"] == 9
+
+
+class TestOverstatement:
+    """The F2P-only view next to the true score: the study's central finding."""
+
+    @staticmethod
+    def attempt(model, solved, f2p, broke=0, tampered=False):
+        return {
+            "model": model, "task_id": f"t{solved}{f2p}{broke}", "subject": "s",
+            "solved": solved, "fail_to_pass_passed": f2p, "broke_pass_to_pass": broke,
+            "tampered_with_tests": tampered, "seconds": 1.0, "cost_usd": None,
+            "tools": {"calls": 3},
+        }
+
+    def test_rows_carry_the_f2p_only_view(self):
+        from groundhog.report import summarise
+        rows = summarise([
+            self.attempt("m", True, True),
+            self.attempt("m", False, True, broke=9),
+            self.attempt("m", False, True, broke=4),
+            self.attempt("m", False, False),
+        ])
+        row = rows[0]
+        assert row["solved"] == 1
+        assert row["f2p_only_solved"] == 3
+        assert row["collateral_attempts"] == 2
+        assert row["collateral_tests_broken"] == 13
+
+    def test_test_editing_is_counted_separately_from_collateral(self):
+        from groundhog.report import summarise
+        rows = summarise([self.attempt("m", False, True, tampered=True)])
+        assert rows[0]["f2p_only_solved"] == 1
+        assert rows[0]["collateral_attempts"] == 0
+        assert rows[0]["tampered"] == 1
+
+    def test_section_prints_only_when_there_is_a_gap(self, capsys):
+        from groundhog.report import overstatement, summarise
+        overstatement(summarise([self.attempt("clean", True, True), self.attempt("clean", False, False)]))
+        assert capsys.readouterr().out == ""
+        overstatement(summarise([self.attempt("sloppy", False, True, broke=2)]))
+        out = capsys.readouterr().out
+        assert "FAIL_TO_PASS-ONLY vs TRUE" in out
+        assert "1 broke 2" in out
+        assert "+100pts" in out
+
+    def test_reproduces_the_study(self):
+        """study/collateral.md: qwen2.5-coder:7b, 6/38 by F2P alone, 3/38 true, 14 tests broken."""
+        import json
+        from pathlib import Path
+        from groundhog.report import summarise
+        path = Path(__file__).resolve().parents[1] / "results" / "study-all.jsonl"
+        if not path.exists():
+            pytest.skip("study results not checked out")
+        rows = {r["model"]: r for r in summarise([json.loads(l) for l in path.read_text().splitlines() if l.strip()])}
+        row = rows["openai:qwen2.5-coder:7b"]
+        assert (row["f2p_only_solved"], row["solved"]) == (6, 3)
+        assert (row["collateral_attempts"], row["collateral_tests_broken"]) == (3, 14)
+        assert rows["openai:qwen3:8b"]["collateral_attempts"] == 0

@@ -116,6 +116,8 @@
     .scale { margin-left: 108px; }
     h1 { font-size: 23px; }
   }
+  .over { color: #b45309; font-weight: 600; font-size: 0.85em; margin-left: 4px; }
+  .note { color: var(--muted, #666); font-size: 0.9em; margin: 12px 4px 0; }
 </style>
 </head>
 <body>
@@ -207,17 +209,31 @@
   html += '</div><div class="scale"><span>0%</span><span>50%</span><span>100%</span></div></div></section>';
 
   html += '<section><h2>Detail</h2><div class="card"><table><thead><tr>' +
-    "<th>Model</th><th>Solved</th><th>Pass rate</th><th>Cost</th>" +
-    "<th>Cost / solve</th><th>Median time</th></tr></thead><tbody>";
+    "<th>Model</th><th>Solved</th><th>Pass rate</th>" +
+    '<th title="What a harness that checks only the target tests would report">F2P-only</th>' +
+    '<th title="Attempts that passed the target tests and broke previously-passing ones">Collateral</th>' +
+    "<th>Cost</th><th>Cost / solve</th><th>Median time</th></tr></thead><tbody>";
+  var anyGap = false;
   data.models.forEach(function (m, i) {
     var w = i === 0 && !m.unmeasured ? ' class="win"' : "";
     var rate = m.unmeasured ? "not measured" : (m.pass_rate * 100).toFixed(0) + "%";
+    var f2p = m.f2p_only_solved === undefined ? "&mdash;" : m.f2p_only_solved + " / " + m.total;
+    var gap = (m.f2p_only_solved || 0) - m.solved;
+    if (gap > 0) { anyGap = true; f2p += ' <span class="over">+' + Math.round(gap / m.total * 100) + 'pts</span>'; }
+    var coll = m.collateral_attempts ? m.collateral_attempts + " broke " + m.collateral_tests_broken : "0";
+    if (m.unmeasured) { f2p = "&mdash;"; coll = "&mdash;"; }
     html += "<tr><td" + w + ">" + esc(short(m.model)) + "</td><td>" + m.solved + " / " + m.total +
-      "</td><td" + w + ">" + rate + "</td><td>" + money(m.cost) +
+      "</td><td" + w + ">" + rate + "</td><td>" + f2p + "</td><td>" + coll + "</td><td>" + money(m.cost) +
       "</td><td>" + money(m.cost_per_solve) + "</td><td>" +
       Math.round(m.median_seconds) + "s</td></tr>";
   });
-  html += "</tbody></table></div></section>";
+  html += "</tbody></table>";
+  if (anyGap) {
+    html += '<p class="note">F2P-only is what most harnesses report: the target tests pass. ' +
+      'The pass rate here also requires every previously-passing test to still pass and the test files ' +
+      'to be untouched. The difference is agents that did the task and broke something else doing it.</p>';
+  }
+  html += "</div></section>";
 
   var byKey = {};
   data.results.forEach(function (r) { byKey[r.model + "|" + r.task_id] = r.solved; });

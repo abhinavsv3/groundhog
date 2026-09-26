@@ -29,6 +29,11 @@ def summarise(records: list[dict]) -> list[dict]:
     rows = []
     for model, attempts in by_model.items():
         solved = sum(1 for a in attempts if a["solved"])
+        # What a harness that checks only the target tests would have reported.
+        f2p_only = sum(1 for a in attempts if a.get("fail_to_pass_passed") or a["solved"])
+        collateral = [a for a in attempts if a.get("fail_to_pass_passed") and not a["solved"]
+                      and not a.get("tampered_with_tests")]
+        tampered = sum(1 for a in attempts if a.get("tampered_with_tests"))
         silent = sum(1 for a in attempts if not (a.get("tools") or {}).get("calls", 0))
         costs = [a["cost_usd"] for a in attempts if a.get("cost_usd") is not None]
         times = sorted(a["seconds"] for a in attempts)
@@ -45,6 +50,10 @@ def summarise(records: list[dict]) -> list[dict]:
                 "cost_per_solve": (sum(costs) / solved) if costs and solved else None,
                 "median_seconds": times[len(times) // 2] if times else 0.0,
                 "errors": sum(1 for a in attempts if a.get("error")),
+                "f2p_only_solved": f2p_only,
+                "collateral_attempts": len(collateral),
+                "collateral_tests_broken": sum(a.get("broke_pass_to_pass", 0) for a in collateral),
+                "tampered": tampered,
                 "silent": silent,
                 "unmeasured": bool(attempts) and silent / len(attempts) > SILENT_LIMIT,
             }
@@ -238,6 +247,44 @@ def print_table(rows: list[dict], records: list[dict]) -> None:
     print()
 
 
+def overstatement(rows: list[dict]) -> None:
+    """What a FAIL_TO_PASS-only harness would have reported, next to the truth.
+
+    Most harnesses check that the target tests pass and stop there. Groundhog
+    also requires every previously-passing test to still pass and the test
+    files to be untouched. The gap between the two numbers is agents that did
+    the task and broke something else doing it -- the study's central finding,
+    and the one number this tool exists to put in front of people.
+    """
+    shown = [r for r in rows if not r["unmeasured"]]
+    if not any(r["f2p_only_solved"] > r["solved"] for r in shown):
+        return  # no gap anywhere; an empty table would imply one was looked for and found
+
+    width = max(len(r["model"]) for r in shown) + 2
+    print(f"\n{BOLD}FAIL_TO_PASS-ONLY vs TRUE{RESET}  "
+          f"{DIM}(what most harnesses report, next to what actually held){RESET}")
+    header = (f"{'MODEL':<{width}}{'F2P-ONLY':>10}{'TRUE':>8}{'OVERSTATED':>12}"
+              f"{'COLLATERAL':>12}   {'TESTS EDITED':<12}")
+    print(BOLD + header + RESET)
+    print(DIM + "-" * len(header) + RESET)
+    for r in shown:
+        n = r["total"]
+        gap = (r["f2p_only_solved"] - r["solved"]) / n if n else 0.0
+        colour = YELLOW if gap > 0 else ""
+        collateral = (f"{r['collateral_attempts']} broke {r['collateral_tests_broken']}"
+                      if r["collateral_attempts"] else "0")
+        tampered = str(r["tampered"]) if r["tampered"] else "0"
+        print(f"{colour}{r['model']:<{width}}"
+              f"{str(r['f2p_only_solved']) + '/' + str(n):>10}"
+              f"{str(r['solved']) + '/' + str(n):>8}"
+              f"{f'+{gap * 100:.0f}pts' if gap else '0':>12}"
+              f"{collateral:>12}   {tampered:<12}{RESET}")
+    print(f"\n  {DIM}F2P-ONLY: attempts where the target tests passed. TRUE: those where "
+          f"nothing else\n  broke and no test file was edited. COLLATERAL: attempts that "
+          f"passed the target\n  and broke previously-passing tests, with how many. "
+          f"Patches are in results/patches/.{RESET}")
+
+
 def write_site(rows: list[dict], records: list[dict], repo: str, out: Path, template: Path) -> None:
     payload = {
         "repo": repo,
@@ -366,6 +413,7 @@ def main() -> int:
     records = [json.loads(l) for l in cfg.results.read_text().splitlines() if l.strip()]
     rows = summarise(records)
     print_table(rows, records)
+    overstatement(rows)
 
     if cfg.tasks and cfg.tasks.exists():
         tasks = {}
