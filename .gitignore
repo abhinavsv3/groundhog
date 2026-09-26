@@ -6,3 +6,7 @@ tasks/
 results/
 .DS_Store
 *.egg-info/
+dist/
+build/
+*.egg-info/
+.groundhog/

@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import sys
 
+from . import __version__
+
 USAGE = """groundhog -- replay your git history as a regression test for coding agents
 
   groundhog bench    <repo>   mine, validate, run and report in one go (start here)
@@ -19,13 +21,16 @@ USAGE = """groundhog -- replay your git history as a regression test for coding 
   groundhog export   <repo>   write validated tasks in SWE-bench instance format
   groundhog demo              see all of the above run end to end, no API key needed
 
-Each command takes --help.
+Each command takes --help.  groundhog --version prints the version to cite.
 """
 
 
 def main() -> int:
     if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help", "help"):
         print(USAGE)
+        return 0
+    if sys.argv[1] in ("--version", "-V", "version"):
+        print(f"groundhog {__version__}")
         return 0
 
     command, sys.argv = sys.argv[1], [f"groundhog {sys.argv[1]}", *sys.argv[2:]]
