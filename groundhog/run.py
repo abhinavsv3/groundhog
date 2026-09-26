@@ -97,6 +97,7 @@ class Attempt:
     tampered_with_tests: bool = False
     error: str = ""
     files_touched: list[str] = field(default_factory=list)
+    prompt_hash: str = ""  # sha256[:12] of the system prompt; two arms of an ablation must differ here
 
 
 def tools_for(test_files: set[str]) -> list[dict]:
@@ -424,6 +425,8 @@ def finish(record: Attempt, ws: "Workspace", started: float,
 
 def attempt(repo: Path, task: dict, model: str, cfg: argparse.Namespace, run_index: int = 0) -> Attempt:
     record = Attempt(repo=repo.name, task_id=task["sha"][:12], subject=task["subject"], model=model, run_index=run_index)
+    system = getattr(cfg, "system_prompt_text", None) or SYSTEM
+    record.prompt_hash = hashlib.sha256(system.encode()).hexdigest()[:12]
     started = time.monotonic()
     solved = False
     ws = Workspace(repo, task, cfg.venv, cfg.test_cmd, cfg.timeout)
@@ -450,7 +453,7 @@ def attempt(repo: Path, task: dict, model: str, cfg: argparse.Namespace, run_ind
 
     try:
         _, failure = ws.run_tests()
-        chat = connect(model, SYSTEM)
+        chat = connect(model, system)
         chat.say(
             f"Repository: {repo.name}\n"
             f"Tests that must pass: {', '.join(task['test_files'])}\n\n"
@@ -537,6 +540,11 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--repeats", type=int, default=1,
                     help="attempts per task; >1 is required for any claim about a small effect")
+    ap.add_argument("--sample", type=int, default=0, metavar="N",
+                    help="a reproducible random subset of N tasks (see --seed)")
+    ap.add_argument("--seed", type=int, default=0, help="seed for --sample; same seed, same tasks")
+    ap.add_argument("--system-prompt", type=Path, metavar="FILE",
+                    help="replace the built-in loop's system prompt; its hash is recorded per attempt")
     if "--list-agents" in sys.argv:
         print(describe_presets())
         return 0
@@ -572,6 +580,19 @@ def main() -> int:
     tasks = [json.loads(l) for l in cfg.tasks.read_text().splitlines() if l.strip()]
     if cfg.limit:
         tasks = tasks[: cfg.limit]
+    if cfg.sample and cfg.sample < len(tasks):
+        # Seeded, and ordered by sha so the same seed picks the same tasks
+        # whatever order the file happens to be in.
+        import random
+        tasks = sorted(tasks, key=lambda t: t["sha"])
+        tasks = random.Random(cfg.seed).sample(tasks, cfg.sample)
+        print(f"sampled {cfg.sample} tasks with seed {cfg.seed}", file=sys.stderr)
+    if cfg.system_prompt:
+        if cfg.agent_cmd:
+            print("--system-prompt only applies to the built-in loop, not --agent/--agent-cmd",
+                  file=sys.stderr)
+            return 2
+        cfg.system_prompt_text = cfg.system_prompt.read_text()
     models = [m.strip() for m in cfg.models.split(",") if m.strip()]
     if not tasks:
         print("no tasks -- run mine and validate first", file=sys.stderr)

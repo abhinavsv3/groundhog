@@ -126,3 +126,47 @@ class TestCommittingAgent:
         record = run.attempt(repo, task, "idle-preset", cfg)
         assert record.agent == "idle-preset"
         assert not record.solved
+
+
+class TestSampleAndPrompt:
+    def test_same_seed_same_tasks(self, tmp_path):
+        import random
+        tasks = [{"sha": f"{i:040x}"} for i in range(20)]
+        a = random.Random(7).sample(sorted(tasks, key=lambda t: t["sha"]), 5)
+        b = random.Random(7).sample(sorted(reversed(tasks), key=lambda t: t["sha"]), 5)
+        assert a == b
+
+    def test_prompt_hash_recorded_and_differs_by_prompt(self, fixed_repo, tmp_path):
+        repo, task = fixed_repo
+        default = run.attempt(repo, task, "idle", config(tmp_path / "a.jsonl", agent_cmd="true"))
+        cfg = config(tmp_path / "b.jsonl", agent_cmd="true")
+        cfg.system_prompt_text = "Be terse."
+        custom = run.attempt(repo, task, "idle", cfg)
+        assert len(default.prompt_hash) == 12
+        assert default.prompt_hash != custom.prompt_hash
+
+    def test_cli_sample_and_prompt_flags(self, fixed_repo, tmp_path):
+        import json, os, subprocess
+        repo, task = fixed_repo
+        tasks = tmp_path / "t.jsonl"
+        # Three copies of one real task: enough to sample from, all checkable-out.
+        tasks.write_text("".join(json.dumps({**task, "subject": f"Add double {c}"}) + "\n" for c in "abc"))
+        prompt = tmp_path / "p.md"
+        prompt.write_text("custom")
+        env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}
+        # --system-prompt with an external agent is refused
+        proc = subprocess.run([sys.executable, "-m", "groundhog", "run", str(repo), "--tasks", str(tasks),
+                               "--out", str(tmp_path / "o.jsonl"), "--agent-cmd", "true",
+                               "--system-prompt", str(prompt), "--no-auto-env",
+                               "--test-cmd", f"{sys.executable} -m pytest {{tests}} -q"],
+                              capture_output=True, text=True, env=env)
+        assert proc.returncode == 2 and "built-in loop" in proc.stderr
+        # --sample picks a subset
+        proc = subprocess.run([sys.executable, "-m", "groundhog", "run", str(repo), "--tasks", str(tasks),
+                               "--out", str(tmp_path / "o.jsonl"), "--agent-cmd", "true", "--no-auto-env",
+                               "--sample", "2", "--seed", "3",
+                               "--test-cmd", f"{sys.executable} -m pytest {{tests}} -q"],
+                              capture_output=True, text=True, env=env)
+        assert proc.returncode == 0, proc.stderr
+        assert "sampled 2 tasks with seed 3" in proc.stderr
+        assert len((tmp_path / "o.jsonl").read_text().splitlines()) == 2
