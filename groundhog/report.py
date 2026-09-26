@@ -107,6 +107,10 @@ def contamination(records: list[dict], tasks: dict[str, dict],
         task = tasks.get(r["task_id"])
         if not task or not task.get("date"):
             continue
+        if r.get("agent", "builtin") != "builtin" and not cutoff_for(r["model"], overrides):
+            # An external agent's row is named after the agent, not a model
+            # with a published cutoff; asking for one is noise.
+            continue
         cutoff = cutoff_for(r["model"], overrides)
         if not cutoff:
             missing.add(short(r["model"]))
