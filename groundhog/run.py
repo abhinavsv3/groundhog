@@ -20,9 +20,10 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from .agents import build_prompt, run_external
+from .agents import AgentMissing, build_prompt, describe_presets, preset, run_external
 from .environment import DetectionFailed, detect, ensure
 from .models import ProviderError, Usage, connect, price_of
+from .repos import repo_arg
 from .validate import (git, link_node_modules, passing, run, source_roots,
                        tail, verbose_form, wrap)
 
@@ -318,14 +319,33 @@ def patch_dir(cfg: argparse.Namespace) -> Path | None:
 
 
 def changed_files(ws: "Workspace") -> list[str]:
-    """Source files the agent actually modified, from git's point of view."""
-    out = git(ws.tree, "status", "--porcelain", check=False)
-    files = []
-    for line in out.splitlines():
-        rel = line[3:].strip()
-        if rel and rel not in ws.test_files:
-            files.append(rel)
+    """Source files the agent modified, whether or not it committed them.
+
+    Diffing against the task's parent commit rather than HEAD matters for
+    external agents: aider auto-commits by default, and `git status` on a
+    clean tree would report that such an agent did nothing.
+    """
+    committed = git(ws.tree, "diff", "--name-only", ws.task["parent"], check=False)
+    pending = git(ws.tree, "status", "--porcelain", check=False)
+    files: list[str] = []
+    for rel in [*committed.splitlines(), *(l[3:] for l in pending.splitlines())]:
+        rel = rel.strip()
+        if not rel or rel in ws.test_files or rel in files or is_build_noise(rel):
+            continue
+        files.append(rel)
     return files
+
+
+NOISE_DIRS = ("__pycache__", ".pytest_cache", "node_modules", ".mypy_cache", ".ruff_cache")
+
+
+def is_build_noise(rel: str) -> bool:
+    """Running the tests writes caches into the tree; the agent did not."""
+    parts = rel.strip("/").split("/")
+    return (
+        any(p in NOISE_DIRS for p in parts)
+        or rel.endswith((".pyc", ".egg-info", ".egg-info/"))
+    )
 
 
 def save_patch(ws: "Workspace", record: Attempt, out_dir: Path) -> None:
@@ -349,7 +369,9 @@ def save_patch(ws: "Workspace", record: Attempt, out_dir: Path) -> None:
             ":(exclude).pytest_cache/**", ":(exclude)**/*.egg-info/**",
             *[f":(exclude){rel}" for rel in ws.test_files],
         ]
-        diff = git(ws.tree, "diff", "HEAD", "--", ".", *excludes, check=False)
+        # Against the parent commit, not HEAD: an agent that committed its
+        # work would otherwise leave an empty diff and look idle.
+        diff = git(ws.tree, "diff", ws.task["parent"], "--", ".", *excludes, check=False)
         if not diff.strip():
             return
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -407,7 +429,7 @@ def attempt(repo: Path, task: dict, model: str, cfg: argparse.Namespace, run_ind
     ws = Workspace(repo, task, cfg.venv, cfg.test_cmd, cfg.timeout)
 
     if getattr(cfg, "agent_cmd", None):
-        record.agent = "external"
+        record.agent = getattr(cfg, "agent", None) or "external"
         try:
             _, failure = ws.run_tests()
             outcome = run_external(
@@ -481,7 +503,7 @@ def attempt(repo: Path, task: dict, model: str, cfg: argparse.Namespace, run_ind
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("repo", type=Path)
+    ap.add_argument("repo", type=repo_arg, help="path or URL")
     ap.add_argument("--models", default="external",
                     help="comma separated, e.g. anthropic:claude-opus-5,ollama:qwen3:8b "
                          "(see --list-providers)")
@@ -495,11 +517,17 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--max-turns", type=int, default=25)
     ap.add_argument("--max-nudges", type=int, default=2, help="times to push back on a premature finish")
-    ap.add_argument("--agent-cmd", help=(
-        "run an external agent instead of the built-in loop. Placeholders: "
+    which = ap.add_mutually_exclusive_group()
+    which.add_argument("--agent", help=(
+        "run a known coding agent by name: claude-code, aider, codex, opencode, "
+        "gemini, cursor, copilot, goose, amp (see --list-agents)"
+    ))
+    which.add_argument("--agent-cmd", help=(
+        "run any external agent instead of the built-in loop. Placeholders: "
         "{prompt_file} {prompt} {repo} {test_cmd}. "
         "e.g. --agent-cmd \"aider --yes --message-file {prompt_file}\""
     ))
+    ap.add_argument("--list-agents", action="store_true", help="print the preset table and exit")
     ap.add_argument("--agent-timeout", type=int, default=900, help="seconds an external agent may run")
     ap.add_argument("--no-patches", action="store_true", help="do not save each attempt's diff")
     ap.add_argument("--resume", action="store_true",
@@ -509,6 +537,9 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--repeats", type=int, default=1,
                     help="attempts per task; >1 is required for any claim about a small effect")
+    if "--list-agents" in sys.argv:
+        print(describe_presets())
+        return 0
     if "--list-providers" in sys.argv:
         from .models import describe_providers
         rows = describe_providers()
@@ -517,6 +548,16 @@ def main() -> int:
             print(f"{prefix:<{width}}{url:<62}{unlock}")
         return 0
     cfg = ap.parse_args()
+
+    if cfg.agent:
+        try:
+            cfg.agent_cmd = preset(cfg.agent).command
+        except AgentMissing as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        if cfg.models == ap.get_default("models"):
+            # Label the row by the agent, not the word "external".
+            cfg.models = cfg.agent
 
     if cfg.venv is None and not cfg.no_auto_env:
         try:
