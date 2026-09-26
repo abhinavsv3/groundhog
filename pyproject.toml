@@ -23,7 +23,7 @@ classifiers = [
 Homepage = "https://github.com/abhinavsv3/groundhog"
 Repository = "https://github.com/abhinavsv3/groundhog"
 Issues = "https://github.com/abhinavsv3/groundhog/issues"
-Study = "https://abhinavsv3.github.io/groundhog/study.html"
+Study = "https://scalingthoughts.com/groundhog/study.html"
 
 [project.scripts]
 groundhog = "groundhog.__main__:main"

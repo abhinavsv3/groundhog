@@ -1,43 +1,84 @@
 # Groundhog
 
-**Your git history is an eval dataset. You are probably not using it.**
+[![tests](https://github.com/abhinavsv3/groundhog/actions/workflows/test.yml/badge.svg)](https://github.com/abhinavsv3/groundhog/actions/workflows/test.yml)
+[![PyPI](https://img.shields.io/pypi/v/groundhog-eval?label=groundhog-eval)](https://pypi.org/project/groundhog-eval/)
+[![study](https://img.shields.io/badge/study-174%20attempts%2C%20%240-orange)](https://scalingthoughts.com/groundhog/study.html)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-Every commit that changes source *and* tests is a verified problem/solution pair:
-someone wrote a failing test, wrote the fix, and CI proved it worked. A repo's
-recent history holds tens of them — we mined between 7 and 82 candidates per
-project across five real codebases — produced for free as a byproduct of your
-team doing its job.
+**Your git history is an eval dataset. Most harnesses score it wrong.**
 
-Groundhog mines them, verifies them, and races coding agents against them — on
-*your* codebase, in *your* language, with *your* conventions.
+Groundhog mines coding-agent tasks from a repository's own commits, verifies
+each one by running its tests, and races agents against them on *your*
+codebase. It scores an attempt as solved only if the target tests pass **and**
+every previously-passing test still passes **and** no test file was edited.
 
-**See it work first** — no API key, no network, about ten seconds:
+That last clause is not pedantry. Here is a real attempt from
+[the study](study/REPORT.md): the task was "add `count_words()`", the agent
+was qwen2.5-coder:7b, and the target test passed.
+
+```diff
+--- a/toolbox/text.py
++++ b/toolbox/text.py
+@@ -1,62 +1,2 @@
+-"""Small text helpers."""
+-
+-def clamp(value, low, high): ...
+-def chunk(items, size): ...
+-def dedupe(items): ...
+-def truncate(value, length, suffix="..."): ...
+-def parse_bool(value): ...
+-def strip_prefix(value, prefix): ...
+-def flatten(nested): ...
+-def slugify(value): ...
+-def safe_divide(numerator, denominator, default=0.0): ...
++def count_words(text):
++    return len(text.split())
+```
+
+One tool call, no read first. `count_words` is correct. Nine other functions
+are gone. A harness that checks only the target test calls this a solve.
+Across 174 attempts by five local models, that is what it looks like per model:
+
+```
+MODEL                       F2P-ONLY    TRUE  OVERSTATED  COLLATERAL
+openai:qwen3:8b                17/38   17/38           0           0
+openai:qwen2.5-coder:14b        9/22    8/22       +5pts   1 broke 1
+openai:qwen2.5-coder:7b         6/38    3/38       +8pts  3 broke 14
+openai:llama3.1:latest          2/38    1/38       +3pts   1 broke 1
+```
+
+Every patch behind those numbers is in [`study/patches/`](study/patches/),
+and `groundhog show 87eb7a4e9b0c` prints the one above.
+
+## See it in ten seconds
+
+No API key, no network, nothing installed but [uv](https://docs.astral.sh/uv/):
 
 ```bash
-git clone https://github.com/abhinavsv3/groundhog
-cd groundhog && pip install -e .
-python -m groundhog demo
+uvx groundhog-eval demo
 ```
 
-That builds a repository with real git history, mines tasks from it, validates
-them, and runs four scripted agents. One applies the real fix. One applies the
-real fix *and* breaks another module. One applies the real fix *and* edits the
-test. One does nothing. Only the first scores — the captured output is in
-[examples/demo-output.txt](examples/demo-output.txt).
+That builds a repository with real history, mines tasks from it, rejects a
+refactor because its tests passed without the fix, and runs four scripted
+agents. One applies the real fix. One applies the fix and breaks another
+module. One applies the fix and edits the test. One does nothing. Only the
+first scores. Captured output: [examples/demo-output.txt](examples/demo-output.txt).
 
-Mining and validation, real output:
+## Run it on your own code
 
+```bash
+uv tool install groundhog-eval          # or: pip install groundhog-eval
+
+groundhog bench pallets/click --agent claude-code      # the agent you use
+groundhog bench ~/src/myrepo --models ollama:qwen3:8b  # a local model, $0
+groundhog doctor                                       # what this machine can run
 ```
-$ python -m groundhog mine ~/src/httpx --since "3 years ago"
-27 candidates -> tasks/candidates.jsonl                                    6s
 
-$ python -m groundhog validate ~/src/httpx
-10/15 became real tasks                                                   24s
-```
+`bench` mines, validates, runs and reports in one go, under
+`.groundhog/<repo>/`. The second invocation skips straight to the race. A URL
+works anywhere a path does; the clone is cached.
 
-The run step produces a table like this. These are real numbers, from 174
-attempts across five local models and five repositories in three languages, all
-on one laptop for **$0** — the full study is in [`study/REPORT.md`](study/REPORT.md):
+What you get back, here from the study's own results file:
 
 ```
 MODEL                       SOLVED   RATE         95% CI      COST   PER SOLVE   MEDIAN
@@ -48,328 +89,170 @@ openai:qwen2.5-coder:7b       3/38     8%       3% – 21%         -           -
 openai:llama3.1:latest        1/38     3%       0% – 13%         -           -     111s
 openai:mistral:latest         0/38          not measured         —           —     168s
 
-  openai:mistral:latest: 34 of 38 attempts parsed no tool call at all.
-  That is a failed measurement, not a 0% score -- the model may be emitting perfectly
-  good work in a format this harness cannot read. Check with:
-      python3 scripts/probe_model_format.py openai:mistral:latest
-  Exclude it, or widen the parser, before reporting anything about this model.
-
   The top two intervals overlap — this ordering is not a result. Separating them
   would need roughly 538 tasks (you have 38), or use `groundhog compare`
   for a paired test, which needs far fewer.
 ```
 
-That last model is the point. `mistral` writes correct fixes and emits them as
-markdown code fences instead of tool calls, so every one was discarded and the
-run recorded a clean-looking 0% with no errors. Most harnesses would have
-published it. Groundhog refuses the number and tells you how to check
-([the write-up](study/mistral-artifact.md)).
+Every rate carries a Wilson interval, because on a task set this size a gap
+of ten points usually is not one. The last row is a model whose output the
+harness could not read; it gets a refusal, not a 0%. You also get a Markdown copy for the pull request, a shields.io badge for the README,
+a standalone HTML leaderboard, every attempt's diff, and a per-task grid.
+Then `groundhog show <task>` for any attempt you want to understand, and
+`groundhog compare before.jsonl after.jsonl` for whether a change to your
+agent setup helped or hurt, with a paired significance test rather than two
+percentages subtracted.
 
-Every rate carries a Wilson interval, because on a task set this size a gap of
-ten points usually is not one: 6/10 and 5/10 render as 60% and 50% while their
-intervals are 31–83% and 24–76%. `groundhog compare` runs a paired significance
-test rather than subtracting percentages.
+### Agents and models
 
-## Why not just read a leaderboard?
+`--agent` runs the coding agent you actually use, in a throwaway worktree,
+and grades what it left behind:
 
-We tested that premise before making the claim, and it mostly did not hold.
+| preset | verified | preset | verified |
+|---|---|---|---|
+| `claude-code` | yes | `gemini` | flags only |
+| `opencode` | yes | `cursor` | flags only |
+| `aider` | flags only | `copilot` | flags only |
+| `codex` | flags only | `goose`, `amp` | flags only |
 
-Using SWE-bench's published per-repo results (122 leaderboard submissions across
-7 repositories, after discarding 13 whose denominators are wrong — see
-[experiments#484](https://github.com/SWE-bench/experiments/issues/484)), repos
-agree strongly on how to rank models: **mean Spearman rho of 0.86**, and in pairs
-of models separated by at least 5% overall, the worse model wins on a given repo
-only **3.7%** of the time. Pick the top model off a public leaderboard and you
-will be right on your repo almost always.
+"Flags only" means the agent's documented non-interactive flags, not a run we
+have watched succeed. `groundhog run --list-agents` prints the exact commands;
+`--agent-cmd` takes anything else. If you verify a preset, please flip the flag.
 
-So Groundhog will rarely change *which* model you choose. What it tells you is
-something the leaderboards cannot:
+`--models` runs Groundhog's own small tool-calling loop against any model:
 
-**Absolute capability transfers far worse than ranking does.** The median model
-swings **36 percentage points** between its best and worst repository. "Model X
-is 75% on SWE-bench" tells you little about what share of *your* tasks it will
-close.
-
-That is the number you need before pointing an agent at a backlog, and the only
-way to get it is to measure on your own code.
-
-Reproduce the analysis yourself:
-
-```bash
-git clone --filter=blob:none --sparse https://github.com/SWE-bench/experiments
-python analysis/divergence.py experiments
 ```
+anthropic:claude-sonnet-5     ollama:qwen3:8b        openrouter:anthropic/claude-sonnet-5
+openai:gpt-5.2                vllm:my-model          groq:llama-3.3-70b-versatile
+deepseek:deepseek-chat        gemini:gemini-2.5-pro  together: xai: mistral: fireworks: cerebras:
+```
+
+Local hosts need no key and cost $0. Hosted ones read the usual environment
+variable and say where to get one if it is missing. `groundhog run --list-providers`.
+
+### Languages
+
+| language | detected by | runner | status |
+|---|---|---|---|
+| Python | `pyproject.toml`, `setup.py`, `requirements*.txt` | pytest | validated on five real repos |
+| Go | `go.mod` | `go test -json` | validated |
+| JavaScript, TypeScript | `package.json` | vitest, jest | validated |
+| Rust | `Cargo.toml` | `cargo test` | parser tested; [needs a real crate](../../issues/31) |
+
+No Docker. Environments are inferred from the project's own dependency
+declarations and cached. Anything else: `--test-cmd` and `--env-cmd`.
 
 ## How a task is built
 
-Take a commit that touched both source and tests. Check out its parent. Copy in the
-new tests but none of the new source. Then run the tests twice:
+Take a commit that touched both source and tests. Check out its parent. Copy
+in the new tests but none of the new source. Run the tests twice:
 
 ```
 parent + new tests             must FAIL    (the task is solvable)
 parent + new tests + real fix  must PASS    (the task is fair)
 ```
 
-A candidate becomes a task only if both hold. That single check is what separates a
-genuine bug fix from a refactor, and no amount of diff analysis can do it. On the
-runs below it threw out a `ruff` formatting commit and two pure refactors, because
-their tests passed without the fix.
+A candidate becomes a task only if both hold. That single check separates a
+bug fix from a refactor, and no amount of diff analysis can. Optionally the
+fixed state is run again to reject flaky tests (`--stability`). Tasks that
+test the same change (a revert cycle, a re-apply) are collapsed, so a
+confidence interval's independence assumption holds.
 
-The model then sees the repo at the parent commit and the failing test output, and
-has to write the source change itself. Test files are read-only — editing the test
-is failing the task.
+The agent then sees the repo at the parent commit and the failing test
+output. Test files are read-only. Scoring is
+FAIL_TO_PASS and PASS_TO_PASS, the same shape SWE-bench uses, and
+`groundhog export` writes SWE-bench instances.
 
-## Measured on five real repos
+## In CI
 
-Every one of these ran with **no configuration** — no venv, no test command, no
-flags. Groundhog read the project's own dependency declarations, built a cached
-environment, and worked out how to run the tests.
-
-| Repo | Domain | Candidates | Validated |
-|---|---|---|---|
-| encode/httpx | HTTP client | 27 | 10 / 15 tried |
-| pallets/click | CLI framework | 82 | 12 / 15 tried |
-| Textualize/rich | terminal rendering | 37 | 9 / 15 tried |
-| python-attrs/attrs | class generation | 33 | 8 / 15 tried |
-| tiangolo/typer | CLI framework | 7 | 6 / 7 tried |
-
-45 verified tasks, after collapsing commits that test the same change — a
-revert cycle in click produced three commits for one change, which would
-otherwise have tripled its weight in the pass rate and broken the independence
-assumption behind every interval reported here.
-
-Of the 22 rejections, 13 were commits whose tests passed
-without the fix — refactors and formatting, exactly what the fail-to-pass check
-is for. The other 9 were **our** failures, not the repos': environments
-Groundhog could not build well enough to run the tests. That ratio is a fair
-measure of how much of the remaining work is ours.
-
-## Install
-
-```bash
-git clone https://github.com/abhinavsv3/groundhog
-cd groundhog && pip install -e .
+```yaml
+- uses: abhinavsv3/groundhog@v1
+  with:
+    tasks: tasks/pinned.jsonl
+    baseline: results/baseline.jsonl
+    agent: claude-code
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-No runtime dependencies. Everything is stdlib, because every dependency is another
-way a benchmark run dies on somebody's laptop.
+Runs when your agent config changes, writes the table to the job summary,
+fails on a significant regression. [docs/ci.md](docs/ci.md) covers pinning a
+task set, why the test is paired, and how to keep the cost sane.
 
-## Usage
+## What the study found
 
-```bash
-python -m groundhog mine     /path/to/repo --since "6 months ago"
-python -m groundhog validate /path/to/repo
-python -m groundhog run      /path/to/repo --models anthropic:claude-opus-5,openai:gpt-5.2
+[`study/REPORT.md`](study/REPORT.md) is a pre-registered study of 174
+attempts by five local models on five repositories in three languages, on one
+laptop, for $0. It reports two things that worked and two that did not:
 
-# or benchmark the agent you actually use
-python -m groundhog run /path/to/repo \
-    --agent-cmd "aider --yes --message-file {prompt_file}"
-python -m groundhog report   --tasks tasks/validated.jsonl --site site/index.html
+- **FAIL_TO_PASS-only scoring overstates.** The table above. Every patch is
+  saved.
+- **Models differ in how they work, not just how often they succeed.** Tool
+  call counts, error rates and time-to-first-edit separate models that all
+  scored zero.
+- **The validity gate failed, twice.** A cripple test (same model, one turn
+  instead of fourteen) did not score worse, because the un-crippled score was
+  8% and there was no headroom. Reported as a failure, not buried.
+- **One model was unmeasurable.** mistral wrote plausible fixes as markdown
+  fences instead of tool calls. Groundhog refuses to print a percentage for a
+  run like that rather than publishing a clean-looking 0%.
 
-# did a change to your agent setup help or hurt?
-python -m groundhog compare results/baseline.jsonl results/current.jsonl \
-    --fail-on-regression
-```
+Live page: [scalingthoughts.com/groundhog/study.html](https://scalingthoughts.com/groundhog/study.html).
 
-Models are named `provider:model`. Anything with an OpenAI-compatible API
-(OpenRouter, Together, Groq, vLLM, Ollama) works through the `openai` provider with
-`GROUNDHOG_OPENAI_BASE_URL` pointed at it.
+## What it cannot tell you
 
-## Running it for free
+A solve rate is the share of *this slice* an agent can close: single commits
+that changed source and tests, 3 to 200 lines, at most five files, with tests
+that fail without the fix. That excludes features, refactors, multi-commit
+work and every bug fixed without a regression test. Read it as a comparable
+index across agent configurations, not as a forecast of your backlog.
 
-Groundhog works against local models through Ollama, so a full benchmark costs
-nothing:
+Public repos may be in training data; a private repo is the cleanest
+evaluation distribution there is. Tests are a proxy for correctness, and an
+agent can pass them in ways a reviewer would reject. Building an environment
+runs the repository's own install and test suite on your machine, so do not
+point this at code you do not trust. The full list, including the bugs that
+bit us, is in [docs/limitations.md](docs/limitations.md).
 
-```bash
-ollama pull qwen2.5-coder:7b
-export OPENAI_API_KEY=ollama
-export GROUNDHOG_OPENAI_BASE_URL=http://localhost:11434/v1
+## Why not read a leaderboard?
 
-python -m groundhog run /path/to/repo --models openai:qwen2.5-coder:7b
-```
-
-`scripts/local_run.sh` runs several models across several repos in one go.
-
-**Set your expectations first.** In our calibration run, qwen2.5-coder at 7B and
-14B solved **0 of 10** real httpx tasks — while editing source on half of them,
-so they engage and get it wrong rather than failing to act. Local models of this
-size are useful for exercising the harness and catching breakage, not for
-producing a capability number. See
-[analysis/local-models.md](analysis/local-models.md).
-
-Two things had to be built for local models to produce honest numbers, and both
-are worth knowing if you build something similar:
-
-**Some models emit tool calls as text.** qwen2.5-coder's Ollama template has no
-native tool support, so a perfectly good call arrives as a JSON blob in the
-message body. Scored naively it looks like total incapacity. Groundhog parses
-those back into real tool calls.
-
-**Never trust "I'm done".** Weak models routinely announce success having edited
-nothing. Groundhog runs the tests when a model claims to be finished and pushes
-back if they still fail. Before that check, a model that wrote zero files and a
-model that tried hard scored identically -- we were measuring which model gave
-up most politely.
-
-## Status
-
-Early, but working end to end.
-
-- [x] Task mining from git history
-- [x] Fail-to-pass validation with worktree isolation
-- [x] Model runner in an isolated worktree with restricted agent tools
-- [x] Terminal report and leaderboard page
-- [x] Local models via Ollama, for $0
-- [x] Automatic environment setup — no venv or test command needed
-- [ ] [Languages beyond Python](../../issues?q=is%3Aissue+label%3Alanguage)
-- [x] External agent adapters — benchmark *your* agent, not ours
-- [x] FAIL_TO_PASS / PASS_TO_PASS scoring and test-tamper detection
-- [x] Repeats, Wilson intervals and paired significance testing
-- [x] Task deduplication, so related commits are not counted as independent
-- [x] `--resume` for interrupted runs, and each attempt's diff saved
-- [x] `--max-spend` ceiling, and a pass-rate breakdown by change shape
-- [x] Regression tracking (`groundhog compare`) and a CI workflow
-- [x] A [pre-registered study](study/REPORT.md) of 174 attempts, reporting the
-      two things that failed as prominently as the things that worked
+We tested that premise and it mostly held: across 122 SWE-bench submissions,
+repos agree on how to *rank* models (Spearman 0.86). What does not transfer
+is the *number*: the median model swings 36 points between its best and
+worst repository. "75% on SWE-bench" says little about your repo.
+[docs/prior-art.md](docs/prior-art.md) has the analysis, the reproduction
+command, and where Groundhog sits next to SWE-smith, SWE-bench-Live and
+SWE-Factory.
 
 ## Contributing
 
-Groundhog is ~1,800 lines with no runtime dependencies, split into four stages
-that each do one thing. [CONTRIBUTING.md](CONTRIBUTING.md) explains how they fit
-together and where to start.
+About 3,500 lines of stdlib Python in stages that each do one thing.
+[CONTRIBUTING.md](CONTRIBUTING.md) explains how they fit. Most wanted:
+[verify an agent preset](../../issues/24),
+[validate a Rust crate](../../issues/31),
+[unittest-only Python repos](../../issues/37).
 
 - [Good first issues](../../issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 - [Help wanted](../../issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
-- [Worked examples and captured output](examples/)
-- [What people use this for](docs/use-cases.md)
-- [Using Groundhog for research](docs/research.md)
-- [Running it continuously](docs/ci.md)
+- [What people use this for](docs/use-cases.md) · [Research use](docs/research.md) · [CI](docs/ci.md)
 
-The most wanted contribution is **a new language** — mining already recognises
-Go, Rust, TS and JS test files, and only validation is Python-only. After that,
-[task classification](../../issues/7) and [tool-call
-instrumentation](../../issues/9).
+## Citing
 
-## Citing Groundhog
-
-If Groundhog is part of how you produced a result, please cite it. GitHub reads
-[`CITATION.cff`](CITATION.cff), so the "Cite this repository" button in the
-sidebar will generate BibTeX and APA for you.
+GitHub's "Cite this repository" button reads [`CITATION.cff`](CITATION.cff).
+Please also report `groundhog --version`, the repository, the commit range
+mined, and the task-set hash that `validate` prints. Task sets differ between
+repositories and time windows, so a number without them is not reproducible.
 
 ```bibtex
 @software{sv_groundhog_2026,
   author  = {S V, Abhinav},
   title   = {{Groundhog}: Replaying Git History as a Regression Test for Coding Agents},
   year    = {2026},
-  version = {0.1.0},
+  version = {0.2.0},
   url     = {https://github.com/abhinavsv3/groundhog},
   license = {Apache-2.0}
 }
 ```
-
-**Please also state which version you used and how tasks were produced** — the
-repository, the commit range mined, and how many candidates survived validation.
-Task sets differ between repositories and between time windows, so a Groundhog
-number is not reproducible without them. Reporting `groundhog --version` and the
-validated task count is enough.
-
-If you use the repo-transfer analysis in
-[`analysis/divergence.py`](analysis/divergence.py), note that the underlying data
-is from the [SWE-bench experiments
-repository](https://github.com/SWE-bench/experiments) and should be cited
-alongside it.
-
-## Experiments
-
-Written up, reproducible, and including the results that did not flatter the
-project:
-
-| | |
-|---|---|
-| [PASS_TO_PASS experiment](analysis/experiment-pass-to-pass.md) | A 7B model made its target test pass while destroying the library — three times in twelve, unprompted. $0. |
-| [Local models](analysis/local-models.md) | What 7–14B models do on real bugs: they engage, and get it wrong. Every attempt claimed completion without running the tests. |
-| [Harness artifacts](analysis/harness-artifacts.md) | Detecting broken environments in 122 published SWE-bench submissions, via tail asymmetry. Offered upstream as [experiments#488](https://github.com/SWE-bench/experiments/issues/488). |
-| [Repo transfer](analysis/divergence.py) | Ranking transfers between repositories (ρ = 0.86); absolute capability does not (36-point median swing). This falsified the project's original premise. |
-
-## Prior art, and where this sits
-
-This is a crowded field and the core construction is not new. Groundhog's
-fail-to-pass mining is the same idea as
-[SWE-bench](https://github.com/SWE-bench/SWE-bench), and several projects already
-automate task generation from arbitrary repos:
-
-- [SWE-smith](https://github.com/SWE-bench/SWE-smith) — turn any repo into a SWE-gym
-- [SWE-bench-Live](https://github.com/microsoft/SWE-bench-Live) — continuously updated tasks, LLM-built environments
-- [SWE-Factory](https://github.com/DeepSoftwareAnalytics/swe-factory) — automated pipeline, multi-language
-- [R2E-Gym](https://github.com/R2E-Gym/R2E-Gym) — procedurally curated environments
-
-Those are research infrastructure aimed at producing **training data** at scale.
-They want Docker, conda, and multi-agent environment builders; SWE-smith says
-plainly that macOS is not supported.
-
-Groundhog aims at something smaller: a tool an engineer runs on a laptop to answer
-a **decision** — did this change to our agent setup help or hurt, and how much of
-our own history can it reproduce — in minutes, with no Docker. If you need
-training data at scale, use the projects above; they are better at it.
-
-## Honest limitations
-
-**What a solve rate actually measures.** Not "the fraction of your bugs an agent
-can fix." Groundhog's tasks are historical changes that happen to satisfy its
-mining criteria: a single commit, touching both source and tests, 3–200 lines,
-at most 5 source files, where the new tests fail without the fix. That
-systematically excludes bugs fixed without a regression test, features,
-refactors, multi-commit work, architectural change, dependency upgrades and
-anything operational. A 40% score means *40% of that slice* — a real and useful
-slice, and a narrow one. Treat it as a comparable index across agent
-configurations, not as an estimate of your bug backlog.
-
-**Environments are inferred, and inference is not guaranteed.** Groundhog reads
-`pyproject.toml`, PEP 735 dependency groups, extras and `requirements*.txt`, then
-builds a cached venv — no flags needed on the five repos above. Repos with native
-extensions, service dependencies or unusual build systems still need `--venv` and
-`--test-cmd`. The projects above solve this with an LLM that infers build
-commands; Groundhog deliberately does not, so that mining and validation need no
-API key.
-
-**This is isolation, not a security sandbox.** The agent can only read and write
-inside a throwaway git worktree, and edits to test files are rejected. But
-building an environment runs that repository's own `pip install` and test suite
-**on your machine**. A repository you do not trust can execute code that way,
-exactly as it could if you cloned and tested it by hand. Do not point Groundhog
-at untrusted code without OS-level isolation of your own.
-
-**Editable installs silently poison results.** A package installed `-e` from the
-original clone shadows the worktree, so a src-layout repo imports the *fixed* code
-and every test passes no matter what the model wrote. Groundhog forces the
-worktree onto `PYTHONPATH` to prevent this. It cost us 20 tasks on click before we
-caught it, and it failed *silently* — worth knowing if you build something similar.
-
-**Per-repo results are not comparable across repos.** A model scoring 60% here and
-45% elsewhere says nothing about the two repos' relative difficulty. Hold the repo
-fixed and compare models.
-
-**The task set skews small, local and synchronous.** Mining selects single
-commits of 3–200 lines across at most 5 files, with tests. Across 26 mined httpx
-candidates — from an async HTTP library — **none touched concurrency code at
-all.** `report --tasks` breaks the score down by scope, size and concurrency so
-that skew is visible rather than averaged away.
-
-**Tests are a proxy for correctness, not correctness.** An agent can make tests
-pass in ways the original author would reject in review. Groundhog checks that
-`PASS_TO_PASS` tests still pass and that test files were not edited, which rules
-out the crudest cheats — not the subtle ones.
-
-**Public repos may be contaminated.** The repos benchmarked above are popular and
-open; their commits and patches may sit in model training data, which inflates
-scores by an unknown amount. Mining commits merged after a model's cutoff
-mitigates this. Running Groundhog on a **private** repository removes the concern
-almost entirely — an evaluation distribution nobody has trained on is one of the
-better reasons to use this on your own code rather than reading a public
-leaderboard.
-
-**Python only, for now.** The mining patterns recognise Go, Rust, TS and JS test
-files, but validation has only been exercised on Python.
 
 ## License
 

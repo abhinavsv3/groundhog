@@ -242,7 +242,7 @@ python3 scripts/build_report.py         # regenerate this file
 python3 -m groundhog report --results results/study-all.jsonl     --repo "5 repos, 3 languages" --site site/study.html
 ```
 
-The leaderboard page is `site/study.html`. It applies the same refusal the
+The leaderboard page is `site/study.html`, published at https://scalingthoughts.com/groundhog/study.html. It applies the same refusal the
 terminal report does: a model the harness could not read gets no bar and no
 percentage.
 
