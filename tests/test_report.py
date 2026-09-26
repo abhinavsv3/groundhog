@@ -305,3 +305,22 @@ class TestMarkdownAndBadge:
         subprocess.run([sys.executable, "-m", "groundhog", "badge", "--results", str(results),
                         "--out", str(tmp_path / "b.json")], check=True, capture_output=True)
         assert _json.loads((tmp_path / "b.json").read_text())["schemaVersion"] == 1
+
+
+class TestExternalAgentsAreMeasured:
+    def test_no_tool_record_is_not_silence_for_an_external_agent(self):
+        from groundhog.report import summarise
+        mk = TestOverstatement.attempt
+        ext = [dict(mk("claude-code", s, s), agent="claude-code", tools={}, task_id=f"t{i}")
+               for i, s in enumerate([True, False, False])]
+        row = summarise(ext)[0]
+        assert row["silent"] == 0
+        assert not row["unmeasured"]
+        assert row["pass_rate"] == pytest.approx(1 / 3)
+
+    def test_builtin_loop_with_no_calls_is_still_unmeasured(self):
+        from groundhog.report import summarise
+        mk = TestOverstatement.attempt
+        rows = summarise([dict(mk("ollama:m", False, False), tools={"calls": 0}, task_id=f"t{i}")
+                          for i in range(3)])
+        assert rows[0]["unmeasured"]

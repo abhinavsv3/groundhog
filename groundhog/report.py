@@ -34,7 +34,14 @@ def summarise(records: list[dict]) -> list[dict]:
         collateral = [a for a in attempts if a.get("fail_to_pass_passed") and not a["solved"]
                       and not a.get("tampered_with_tests")]
         tampered = sum(1 for a in attempts if a.get("tampered_with_tests"))
-        silent = sum(1 for a in attempts if not (a.get("tools") or {}).get("calls", 0))
+        # "No tool call at all" is a failed measurement only for the built-in
+        # loop, which is the thing that records tool calls. An external agent
+        # (--agent, --agent-cmd) has its own tools we never see; zero here is
+        # expected, and treating it as silence marked every external run as
+        # not measured.
+        silent = sum(1 for a in attempts
+                     if a.get("agent", "builtin") == "builtin"
+                     and not (a.get("tools") or {}).get("calls", 0))
         costs = [a["cost_usd"] for a in attempts if a.get("cost_usd") is not None]
         times = sorted(a["seconds"] for a in attempts)
         lo, hi = wilson(solved, len(attempts))
@@ -464,7 +471,8 @@ def main() -> int:
     ap.add_argument("--results", type=Path, default=Path("results/results.jsonl"))
     ap.add_argument("--repo", default="", help="repo name shown on the page")
     ap.add_argument("--site", type=Path, help="also write a standalone HTML page here")
-    ap.add_argument("--template", type=Path, default=Path("site/template.html"))
+    ap.add_argument("--template", type=Path, default=Path(__file__).with_name("template.html"),
+                    help="HTML template for --site (default: the one shipped with Groundhog)")
     ap.add_argument("--tasks", type=Path, help="validated tasks, for the change-shape breakdown")
     ap.add_argument("--cutoff", action="append", default=[], metavar="NAME=YYYY-MM-DD",
                     help="training cutoff for a model, for the contamination split")
