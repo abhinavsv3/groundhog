@@ -22,6 +22,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .repos import remote_name, repo_arg
+
 STATEMENT = """{subject}
 
 The following tests fail in this repository and must pass:
@@ -69,7 +71,7 @@ def to_instance(repo: Path, repo_name: str, task: dict) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("repo", type=Path, help="the repository the tasks were mined from")
+    ap.add_argument("repo", type=repo_arg, help="the repository the tasks were mined from (path or URL)")
     ap.add_argument("--tasks", type=Path, required=True, help="validated tasks")
     ap.add_argument("--out", type=Path, default=Path("swebench-instances.json"))
     ap.add_argument("--repo-name", help="owner/name as SWE-bench records it (default: directory name)")
@@ -81,7 +83,7 @@ def main() -> int:
         return 1
 
     tasks = [json.loads(l) for l in cfg.tasks.read_text().splitlines() if l.strip()]
-    repo_name = cfg.repo_name or cfg.repo.name
+    repo_name = cfg.repo_name or remote_name(cfg.repo) or cfg.repo.name
     instances, skipped = [], 0
     for task in tasks:
         instance = to_instance(cfg.repo, repo_name, task)

@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .environment import DetectionFailed, detect, ensure
+from .repos import repo_arg
 
 
 @dataclass
@@ -431,7 +432,7 @@ def validate_one(
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("repo", type=Path)
+    ap.add_argument("repo", type=repo_arg, help="path or URL")
     ap.add_argument("--candidates", type=Path, default=Path("tasks/candidates.jsonl"))
     ap.add_argument("--out", type=Path, default=Path("tasks/validated.jsonl"))
     ap.add_argument("--test-cmd", default="python -m pytest {tests} -x -q")

@@ -20,6 +20,8 @@ import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from .repos import repo_arg
+
 TEST_PATTERNS = [
     re.compile(r"(^|/)tests?/"),
     re.compile(r"(^|/)test_[^/]+\.py$"),
@@ -230,7 +232,7 @@ def evaluate(repo: Path, sha: str, date: str, subject: str, cfg: argparse.Namesp
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("repo", type=Path, help="path to a git repository")
+    ap.add_argument("repo", type=repo_arg, help="path to a git repository, or a URL such as pallets/click")
     ap.add_argument("--since", default="6 months ago", help="only consider commits after this date")
     ap.add_argument("--limit", type=int, default=500, help="how many commits to scan")
     ap.add_argument("--max-source-lines", type=int, default=200)

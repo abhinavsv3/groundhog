@@ -384,7 +384,8 @@ def main() -> int:
     import argparse
 
     ap = argparse.ArgumentParser(description="Detect and build a repo's test environment.")
-    ap.add_argument("repo", type=Path)
+    from .repos import repo_arg
+    ap.add_argument("repo", type=repo_arg)
     ap.add_argument("--rebuild", action="store_true")
     ap.add_argument("--plan-only", action="store_true", help="show the plan, build nothing")
     cfg = ap.parse_args()
