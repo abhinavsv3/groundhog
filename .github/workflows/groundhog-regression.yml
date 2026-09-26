@@ -3,10 +3,10 @@
 # Copy this into your own repository. It expects:
 #   - tasks/pinned.jsonl       a frozen task set, committed
 #   - results/baseline.jsonl   results from before the change, committed
-#   - secrets.ANTHROPIC_API_KEY
+#   - a key for the model or agent you use
 #
 # Comparing against a re-mined task set tells you nothing, so the task set is
-# pinned and only refreshed deliberately.
+# pinned and only refreshed deliberately. See docs/ci.md.
 name: groundhog regression
 
 on:
@@ -27,42 +27,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # mining needs history
+          fetch-depth: 0   # tasks reference commits; the history must be there
 
-      - uses: actions/setup-python@v5
+      - uses: abhinavsv3/groundhog@v1
         with:
-          python-version: "3.12"
-
-      - name: Install Groundhog
-        run: pip install git+https://github.com/abhinavsv3/groundhog
-
-      - name: Cache the repo environment
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/groundhog
-          key: groundhog-env-${{ hashFiles('pyproject.toml', 'requirements*.txt') }}
-
-      - name: Run the benchmark
+          tasks: tasks/pinned.jsonl
+          baseline: results/baseline.jsonl
+          models: ${{ vars.GROUNDHOG_MODEL || 'anthropic:claude-sonnet-5' }}
+          repeats: 3
+          jobs: 4
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          python -m groundhog run . \
-            --models "${{ vars.GROUNDHOG_MODEL || 'anthropic:claude-opus-5' }}" \
-            --tasks tasks/pinned.jsonl \
-            --repeats 3 \
-            --out results/current.jsonl
-
-      - name: Compare against baseline
-        run: |
-          python -m groundhog compare \
-            results/baseline.jsonl results/current.jsonl \
-            --label-a baseline --label-b current \
-            --fail-on-regression \
-            --json results/comparison.json
-
-      - name: Keep the results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: groundhog-results
-          path: results/

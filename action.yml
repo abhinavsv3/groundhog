@@ -1,0 +1,142 @@
+name: "Groundhog agent regression check"
+description: "Race a coding agent against tasks mined from this repo's history, compare to a baseline, and post the table."
+author: "Abhinav S V"
+branding:
+  icon: "activity"
+  color: "orange"
+
+inputs:
+  tasks:
+    description: "Pinned task set (JSONL). Mine and validate once, commit it, refresh deliberately."
+    required: true
+  baseline:
+    description: "Results file from before the change. Omit on the first run to only record."
+    required: false
+    default: ""
+  models:
+    description: "Comma separated provider:model list for the built-in loop."
+    required: false
+    default: ""
+  agent:
+    description: "A preset external agent: claude-code, aider, codex, opencode, gemini, cursor, copilot, goose, amp."
+    required: false
+    default: ""
+  agent-cmd:
+    description: "Any external agent command, with {prompt_file} {prompt} {repo} {test_cmd} placeholders."
+    required: false
+    default: ""
+  repeats:
+    description: "Attempts per task. Three or more for a claim about a small effect."
+    required: false
+    default: "1"
+  jobs:
+    description: "Attempts to run concurrently."
+    required: false
+    default: "1"
+  sample:
+    description: "Run a random subset of this many tasks (0 for all)."
+    required: false
+    default: "0"
+  seed:
+    description: "Seed for --sample."
+    required: false
+    default: "0"
+  max-spend:
+    description: "Stop cleanly once cumulative cost would exceed this many USD."
+    required: false
+    default: ""
+  fail-on-regression:
+    description: "Fail the job if the current run is significantly worse than the baseline."
+    required: false
+    default: "true"
+  fail-under:
+    description: "Fail the job if the pass rate is below this fraction (0-1)."
+    required: false
+    default: ""
+  version:
+    description: "Groundhog version to install from PyPI, or 'git' for the main branch."
+    required: false
+    default: "git"
+  python-version:
+    description: "Python to run Groundhog under."
+    required: false
+    default: "3.12"
+
+outputs:
+  results:
+    description: "Path to the results JSONL."
+    value: ${{ steps.run.outputs.results }}
+  report:
+    description: "Path to the Markdown report."
+    value: ${{ steps.run.outputs.report }}
+  pass-rate:
+    description: "Pass rate of the current run (0-1)."
+    value: ${{ steps.compare.outputs.pass_rate }}
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Groundhog
+      shell: bash
+      run: |
+        if [ "${{ inputs.version }}" = "git" ]; then
+          pip install --quiet git+https://github.com/abhinavsv3/groundhog
+        else
+          pip install --quiet "groundhog-eval==${{ inputs.version }}"
+        fi
+        groundhog --version
+
+    - name: Cache repository environments
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/groundhog
+        key: groundhog-${{ runner.os }}-${{ hashFiles('pyproject.toml', 'setup.py', 'requirements*.txt', 'package-lock.json', 'go.sum', 'Cargo.lock') }}
+
+    - name: Run
+      id: run
+      shell: bash
+      run: |
+        set -euo pipefail
+        args=(run . --tasks "${{ inputs.tasks }}" --out results/current.jsonl
+              --repeats "${{ inputs.repeats }}" --jobs "${{ inputs.jobs }}")
+        [ -n "${{ inputs.models }}" ]    && args+=(--models "${{ inputs.models }}")
+        [ -n "${{ inputs.agent }}" ]     && args+=(--agent "${{ inputs.agent }}")
+        [ -n "${{ inputs.agent-cmd }}" ] && args+=(--agent-cmd "${{ inputs.agent-cmd }}")
+        [ "${{ inputs.sample }}" != "0" ] && args+=(--sample "${{ inputs.sample }}" --seed "${{ inputs.seed }}")
+        [ -n "${{ inputs.max-spend }}" ] && args+=(--max-spend "${{ inputs.max-spend }}")
+        groundhog "${args[@]}"
+        groundhog report --results results/current.jsonl --tasks "${{ inputs.tasks }}" \
+          --markdown results/report.md --title "Groundhog: ${GITHUB_REPOSITORY#*/} @ ${GITHUB_SHA::7}"
+        groundhog badge --results results/current.jsonl --out results/badge.json || true
+        cat results/report.md >> "$GITHUB_STEP_SUMMARY"
+        echo "results=results/current.jsonl" >> "$GITHUB_OUTPUT"
+        echo "report=results/report.md" >> "$GITHUB_OUTPUT"
+
+    - name: Compare against baseline
+      id: compare
+      if: inputs.baseline != ''
+      shell: bash
+      run: |
+        set -uo pipefail
+        args=("${{ inputs.baseline }}" results/current.jsonl --label-a baseline --label-b current
+              --json results/comparison.json)
+        [ "${{ inputs.fail-on-regression }}" = "true" ] && args+=(--fail-on-regression)
+        [ -n "${{ inputs.fail-under }}" ] && args+=(--fail-under "${{ inputs.fail-under }}")
+        groundhog compare "${args[@]}" | tee results/comparison.txt
+        status=${PIPESTATUS[0]}
+        {
+          echo; echo '```'; sed 's/\x1b\[[0-9;]*m//g' results/comparison.txt; echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+        python -c 'import json;print("pass_rate=%s" % json.load(open("results/comparison.json"))["current_rate"])' >> "$GITHUB_OUTPUT"
+        exit $status
+
+    - name: Keep the results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: groundhog-results
+        path: results/
